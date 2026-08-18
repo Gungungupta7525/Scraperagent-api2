@@ -1,9 +1,12 @@
 import asyncio
 import json
+import mimetypes
 import queue
 import threading
 import time
 import warnings
+
+mimetypes.add_type("application/javascript", ".js")
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware

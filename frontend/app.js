@@ -588,6 +588,7 @@
           ...(settings.apiKey ? { "X-API-Key": settings.apiKey } : {}),
         },
         body: JSON.stringify({ job_description: text, max_candidates: CONFIG.MAX_CANDIDATES }),
+        signal: AbortSignal.timeout(120000),
       });
 
       if (!res.ok) {
