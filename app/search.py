@@ -102,52 +102,10 @@ class TavilySearch:
         return out
 
 
-class SearxngSearch:
-    _INSTANCES = [
-        "https://search.sapti.me",
-        "https://etsi.me",
-        "https://search.ononoki.org",
-        "https://priv.au",
-        "https://opnxng.com",
-        "https://search.bus-hit.me",
-    ]
-
-    def __init__(self, base_url: str = "", timeout: float = 10.0):
-        self.timeout = timeout
-        self._instances = [base_url] if base_url else list(self._INSTANCES)
-        self._idx = 0
-
-    def search(self, query: str, max_results: int = 5):
-        errors = []
-        for _ in range(len(self._instances)):
-            url = self._instances[self._idx % len(self._instances)]
-            self._idx += 1
-            try:
-                resp = httpx.get(
-                    f"{url}/search",
-                    params={"q": query, "format": "json", "categories": "general"},
-                    timeout=self.timeout,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                out = []
-                for row in data.get("results", [])[:max_results]:
-                    u = row.get("url") or ""
-                    if not u:
-                        continue
-                    out.append({"title": row.get("title") or "", "url": u, "snippet": row.get("content") or ""})
-                if out:
-                    return out
-            except Exception as exc:
-                errors.append(f"{url}: {exc}")
-        raise RuntimeError(f"All SearXNG instances failed: {'; '.join(errors[:3])}")
-
-
 class SearchClient:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.searxng = SearxngSearch(settings.searxng_url, timeout=settings.search_timeout)
-        self.tavily = TavilySearch(settings.tavily_api_key, timeout=settings.search_timeout) if settings.tavily_api_key else None
+        self.tavily = TavilySearch(settings.tavily_api_key, timeout=settings.search_timeout)
         self.ddg = DuckDuckGoSearch(timeout=min(_DDG_TIMEOUT, settings.search_timeout))
         self.breakers = {}
         self.status = {}
@@ -172,10 +130,7 @@ class SearchClient:
             return []
 
         error = None
-        attempts: list[tuple] = [(self.searxng, 0)]
-        if self.tavily is not None:
-            attempts.append((self.tavily, 0))
-        attempts.append((self.ddg, 0))
+        attempts = [(self.tavily, 0), (self.ddg, 0)]
         for backend, sleep_secs in attempts:
             if backend is None:
                 continue
