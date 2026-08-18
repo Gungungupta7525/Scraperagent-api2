@@ -62,7 +62,7 @@
   }
 
   function updateShortlistCount() {
-    const count = shortlisted.size;
+    const count = allCandidates.filter((c) => shortlisted.has(c.url)).length;
     if (count > 0) {
       shortlistCountEl.textContent = count;
       shortlistCountEl.classList.remove("hidden");
@@ -162,6 +162,10 @@
     currentView = "search";
     allCandidates = data.candidates || [];
     lastJobDescription = input.value.trim() || lastJobDescription;
+    activeFilter = "all";
+    activeSort = "score";
+    threshold = 0;
+    syncFilters();
     applyFilterAndSort();
     searchSection.classList.add("hidden");
     resultsSection.classList.remove("hidden");
@@ -513,6 +517,12 @@
     const text = input.value.trim();
     if (!text || busy) return;
 
+    const filterRole = ($("#filter-role") || {}).value || "";
+    const filterExp = ($("#filter-experience") || {}).value || "";
+    const filterLoc = ($("#filter-location") || {}).value || "";
+    const extras = [filterRole, filterExp, filterLoc].filter(Boolean).join(", ");
+    const fullText = extras ? `${text}\n\nAdditional filters: ${extras}` : text;
+
     busy = true;
     sendBtn.disabled = true;
     lastJobDescription = text;
@@ -539,7 +549,7 @@
           "Content-Type": "application/json",
           ...(settings.apiKey ? { "X-API-Key": settings.apiKey } : {}),
         },
-        body: JSON.stringify({ job_description: text, max_candidates: CONFIG.MAX_CANDIDATES }),
+        body: JSON.stringify({ job_description: fullText, max_candidates: CONFIG.MAX_CANDIDATES }),
       });
 
       if (!res.ok) {
@@ -623,14 +633,14 @@
     sortSelect.value = activeSort;
   }
 
-  /* results filter bar pills */
-  $$(".fpill[data-filter]", resultsSection).forEach((pill) => {
-    pill.addEventListener("click", () => {
-      $$(".fpill[data-filter]", resultsSection).forEach((p) => p.classList.remove("active"));
-      pill.classList.add("active");
-      activeFilter = pill.dataset.filter;
-      applyFilterAndSort();
-    });
+  /* results filter bar pills — event delegation */
+  resultsSection.addEventListener("click", (e) => {
+    const pill = e.target.closest(".fpill[data-filter]");
+    if (!pill) return;
+    $$(".fpill[data-filter]", resultsSection).forEach((p) => p.classList.remove("active"));
+    pill.classList.add("active");
+    activeFilter = pill.dataset.filter;
+    applyFilterAndSort();
   });
 
   thresholdSlider.addEventListener("input", (e) => {
