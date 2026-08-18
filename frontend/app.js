@@ -52,9 +52,23 @@
   let activeSort = "score";
   let lastJobDescription = "";
   let selectedCandidateUrl = null;
+  let currentView = "search";
+
+  const shortlistCountEl = $("#shortlist-count");
 
   function saveShortlist() {
     localStorage.setItem(LS_SHORTLIST, JSON.stringify([...shortlisted]));
+    updateShortlistCount();
+  }
+
+  function updateShortlistCount() {
+    const count = shortlisted.size;
+    if (count > 0) {
+      shortlistCountEl.textContent = count;
+      shortlistCountEl.classList.remove("hidden");
+    } else {
+      shortlistCountEl.classList.add("hidden");
+    }
   }
 
   /* ---------- settings ---------- */
@@ -145,9 +159,11 @@
 
   /* ---------- rendering ---------- */
   function renderResults(data) {
+    currentView = "search";
     allCandidates = data.candidates || [];
     lastJobDescription = input.value.trim() || lastJobDescription;
     applyFilterAndSort();
+    searchSection.classList.add("hidden");
     resultsSection.classList.remove("hidden");
     detailPanel.classList.remove("hidden");
     detailPlaceholder.classList.remove("hidden");
@@ -282,6 +298,7 @@
         shortBtn.textContent = "Shortlisted";
       }
       saveShortlist();
+      renderCards(currentViewCandidates());
     });
     actions.appendChild(shortBtn);
     footer.appendChild(actions);
@@ -356,7 +373,7 @@
             ${c.location ? `<tr><td>Location</td><td>${escapeHtml(c.location)}</td></tr>` : ""}
             ${c.experience ? `<tr><td>Experience</td><td>${escapeHtml(c.experience)}</td></tr>` : ""}
             ${c.source ? `<tr><td>Source</td><td>${sourceBadgeHtml(c.source, c.url)}</td></tr>` : ""}
-            ${c.url ? `<tr><td>Profile</td><td><a href="${escapeHtml(c.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;font-size:13px">${escapeHtml(c.url).replace(/^https?:\/\//, "").replace(/\/$/, "")}</a></td></tr>` : ""}
+            ${c.source && c.url ? `<tr><td>Profile</td><td>${sourceBadgeHtml(c.source, c.url)}</td></tr>` : ""}
           </table>
         </div>
       </div>
@@ -417,7 +434,11 @@
           detailShortBtn.textContent = "Shortlisted";
         }
         saveShortlist();
-        applyFilterAndSort();
+        if (currentView === "shortlisted") {
+          showShortlisted();
+        } else {
+          applyFilterAndSort();
+        }
       });
     }
 
@@ -444,7 +465,7 @@
   /* ---------- health ---------- */
   async function checkHealth() {
     try {
-      const res = await fetch(`${settings.baseUrl}/health`, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(`${settings.baseUrl}/health`, { signal: AbortSignal.timeout(15000) });
       if (res.ok) {
         const data = await res.json();
         setStatus("ok", data.mode === "llm+heuristic" ? "API online (LLM)" : "API online");
@@ -605,7 +626,6 @@
     advFilterModal.classList.remove("hidden");
   }
 
-  $("#advanced-filters-btn").addEventListener("click", openAdvFilterModal);
   $("#adv-filter-modal .modal-backdrop").addEventListener("click", () => advFilterModal.classList.add("hidden"));
 
   $("#adv-match-pills").addEventListener("click", (e) => {
@@ -663,6 +683,7 @@
 
   /* ---------- new search ---------- */
   function newSearch() {
+    currentView = "search";
     resultsSection.classList.add("hidden");
     skeletonList.classList.add("hidden");
     emptyState.classList.add("hidden");
@@ -673,6 +694,7 @@
     detailPanel.classList.add("hidden");
     selectedCandidateUrl = null;
     streamStatus.classList.add("hidden");
+    searchSection.classList.remove("hidden");
     input.value = "";
     input.focus();
   }
@@ -723,25 +745,47 @@
     });
 
     syncFilters();
+    updateShortlistCount();
     setStatus("", "checking\u2026");
     checkHealth();
   }
 
   function showShortlisted() {
+    currentView = "shortlisted";
     const items = allCandidates.filter((c) => shortlisted.has(c.url));
+    searchSection.classList.add("hidden");
+    resultsSection.classList.remove("hidden");
+    detailPanel.classList.remove("hidden");
+    detailPlaceholder.classList.remove("hidden");
+    detailContent.classList.add("hidden");
+    selectedCandidateUrl = null;
+    errorState.classList.add("hidden");
+    skeletonList.classList.add("hidden");
     if (items.length === 0) {
-      resultsSection.classList.remove("hidden");
       candidatesList.innerHTML = "";
       emptyState.classList.remove("hidden");
       resultsTitle.textContent = "No Shortlisted Candidates";
       return;
     }
-    resultsSection.classList.remove("hidden");
     emptyState.classList.add("hidden");
-    errorState.classList.add("hidden");
-    skeletonList.classList.add("hidden");
     resultsTitle.textContent = `${items.length} Shortlisted Candidate${items.length !== 1 ? "s" : ""}`;
     renderCards(items);
+  }
+
+  function currentViewCandidates() {
+    if (currentView === "shortlisted") {
+      return allCandidates.filter((c) => shortlisted.has(c.url));
+    }
+    let filtered = allCandidates.filter((c) => {
+      const score = c.relevance_score || 0;
+      if (score * 100 < threshold) return false;
+      if (activeFilter !== "all" && matchCategory(score) !== activeFilter) return false;
+      return true;
+    });
+    if (activeSort === "name") {
+      filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }
+    return filtered;
   }
 
   init();
