@@ -15,7 +15,7 @@ class Settings:
         self.gemini_api_key = (env.get("GEMINI_API_KEY") or "").strip()
         self.gemini_model = (env.get("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL).strip()
         self.tavily_api_key = (env.get("TAVILY_API_KEY") or "").strip()
-        self.searxng_url = (env.get("SEARXNG_URL") or "https://search.ononoki.org").rstrip("/")
+        self.searxng_url = (env.get("SEARXNG_URL") or "").strip()
 
         self.crawl4ai_enabled = env.get("ENABLE_CRAWL4AI", "false").lower() in ("1", "true", "yes")
 

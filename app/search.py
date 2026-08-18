@@ -103,31 +103,44 @@ class TavilySearch:
 
 
 class SearxngSearch:
-    def __init__(self, base_url: str, timeout: float = 10.0):
-        self.base_url = base_url
+    _INSTANCES = [
+        "https://search.sapti.me",
+        "https://etsi.me",
+        "https://search.ononoki.org",
+        "https://priv.au",
+        "https://opnxng.com",
+        "https://search.bus-hit.me",
+    ]
+
+    def __init__(self, base_url: str = "", timeout: float = 10.0):
         self.timeout = timeout
+        self._instances = [base_url] if base_url else list(self._INSTANCES)
+        self._idx = 0
 
     def search(self, query: str, max_results: int = 5):
-        resp = httpx.get(
-            f"{self.base_url}/search",
-            params={"q": query, "format": "json", "categories": "general"},
-            timeout=self.timeout,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        out = []
-        for row in data.get("results", [])[:max_results]:
-            url = row.get("url") or ""
-            if not url:
-                continue
-            out.append(
-                {
-                    "title": row.get("title") or "",
-                    "url": url,
-                    "snippet": row.get("content") or "",
-                }
-            )
-        return out
+        errors = []
+        for _ in range(len(self._instances)):
+            url = self._instances[self._idx % len(self._instances)]
+            self._idx += 1
+            try:
+                resp = httpx.get(
+                    f"{url}/search",
+                    params={"q": query, "format": "json", "categories": "general"},
+                    timeout=self.timeout,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                out = []
+                for row in data.get("results", [])[:max_results]:
+                    u = row.get("url") or ""
+                    if not u:
+                        continue
+                    out.append({"title": row.get("title") or "", "url": u, "snippet": row.get("content") or ""})
+                if out:
+                    return out
+            except Exception as exc:
+                errors.append(f"{url}: {exc}")
+        raise RuntimeError(f"All SearXNG instances failed: {'; '.join(errors[:3])}")
 
 
 class SearchClient:
@@ -159,7 +172,7 @@ class SearchClient:
             return []
 
         error = None
-        attempts = [(self.searxng, 0)]
+        attempts: list[tuple] = [(self.searxng, 0)]
         if self.tavily is not None:
             attempts.append((self.tavily, 0))
         attempts.append((self.ddg, 0))
