@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ScraperAgent — AI Candidate Sourcing</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+            <path d="M16 16l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span class="sidebar-brand-name">ScraperAgent</span>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item" data-page="dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item active" data-page="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <span>Search Candidates</span>
+        </button>
+        <button class="nav-item" data-page="shortlisted">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <span>Shortlisted</span>
+        </button>
+        <button class="nav-item" data-page="history">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>History</span>
+        </button>
+        <button class="nav-item" data-page="reports">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <span>Reports</span>
+        </button>
+        <button class="nav-item" data-page="settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Settings</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-status">
+          <span id="sidebar-status-dot" class="status-dot"></span>
+          <span id="sidebar-status-text">Checking...</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mobile Header -->
+    <header id="mobile-header" class="mobile-header">
+      <button id="sidebar-toggle" class="sidebar-toggle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="mobile-brand">
+        <div class="mobile-logo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+            <path d="M16 16l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span>ScraperAgent</span>
+      </div>
+      <div class="mobile-header-right">
+        <span id="mobile-api-status" class="mobile-api-status">—</span>
+        <button id="mobile-settings-btn" class="icon-btn-sm">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Sidebar Overlay (mobile) -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Search Section -->
+      <section id="search-section" class="search-section">
+        <div class="search-hero">
+          <h1 class="search-title">Find the right candidates</h1>
+          <p class="search-subtitle">Paste a job description and let AI find the best matches from multiple sources.</p>
+        </div>
+
+        <div class="search-form">
+          <div class="search-textarea-wrap">
+            <textarea
+              id="input"
+              rows="5"
+              placeholder="e.g. Senior Python backend engineer with FastAPI, AWS, Docker, 5+ years experience..."
+              aria-label="Job description"
+            ></textarea>
+            <div id="stream-status" class="stream-status hidden"></div>
+          </div>
+
+          <div class="search-filters">
+            <div class="filter-input-group">
+              <label>Role / Title</label>
+              <input type="text" id="filter-role" placeholder="e.g. Backend Engineer" />
+            </div>
+            <div class="filter-input-group">
+              <label>Experience</label>
+              <input type="text" id="filter-experience" placeholder="e.g. 5+ years" />
+            </div>
+            <div class="filter-input-group">
+              <label>Location</label>
+              <input type="text" id="filter-location" placeholder="e.g. Bangalore" />
+            </div>
+            <div class="filter-input-group filter-advanced">
+              <button id="advanced-filters-btn" class="btn-ghost-sm">Advanced Filters</button>
+            </div>
+          </div>
+
+          <button id="send-btn" type="button" class="btn-primary btn-search-full">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Search for Candidates
+          </button>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section id="results-section" class="results-section hidden">
+        <!-- Results Header -->
+        <div class="results-header">
+          <div class="results-header-top">
+            <div>
+              <h2 id="results-title" class="results-title">Candidates Found</h2>
+              <div id="results-stats" class="results-stats">
+                <span class="stat-card stat-strong"><span class="stat-dot"></span><span id="stat-strong">0</span> Strong Match</span>
+                <span class="stat-card stat-good"><span class="stat-dot"></span><span id="stat-good">0</span> Good Match</span>
+                <span class="stat-card stat-review"><span class="stat-dot"></span><span id="stat-review">0</span> Needs Review</span>
+              </div>
+            </div>
+            <button id="new-search-btn" class="btn-new-search" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              New Search
+            </button>
+          </div>
+
+          <div class="results-filter-bar">
+            <div class="filter-pills">
+              <button class="fpill active" data-filter="all">All</button>
+              <button class="fpill" data-filter="strong">Strong Match</button>
+              <button class="fpill" data-filter="good">Good Match</button>
+              <button class="fpill" data-filter="review">Needs Review</button>
+            </div>
+            <div class="filter-controls-right">
+              <div class="min-match-control">
+                <label>Min. Match</label>
+                <input type="range" id="threshold-slider" min="0" max="95" value="0" step="5" />
+                <span id="threshold-val">0%</span>
+              </div>
+              <div class="sort-control">
+                <label>Sort by</label>
+                <select id="sort-select">
+                  <option value="score">Best Match</option>
+                  <option value="name">Name</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <div id="skeleton-list" class="skeleton-grid hidden">
+          <div class="skeleton-card"><div class="sk-avatar"></div><div class="sk-body"><div class="sk-line w80"></div><div class="sk-line w60"></div><div class="sk-line w40"></div><div class="sk-pills"><div class="sk-pill"></div><div class="sk-pill"></div><div class="sk-pill w40"></div></div></div></div>
+          <div class="skeleton-card"><div class="sk-avatar"></div><div class="sk-body"><div class="sk-line w70"></div><div class="sk-line w50"></div><div class="sk-line w60"></div><div class="sk-pills"><div class="sk-pill"></div><div class="sk-pill w60"></div></div></div></div>
+          <div class="skeleton-card"><div class="sk-avatar"></div><div class="sk-body"><div class="sk-line w90"></div><div class="sk-line w40"></div><div class="sk-line w50"></div><div class="sk-pills"><div class="sk-pill"></div><div class="sk-pill"></div><div class="sk-pill"></div></div></div></div>
+        </div>
+
+        <!-- Candidate List + Detail Split View -->
+        <div class="results-split">
+          <div id="candidates-list" class="candidates-list"></div>
+          <div id="detail-panel" class="detail-panel">
+            <div id="detail-placeholder" class="detail-placeholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <p>Select a candidate to view details</p>
+            </div>
+            <div id="detail-content" class="detail-content hidden"></div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="state-box hidden">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <p class="state-text">No candidates found</p>
+          <p class="state-hint">Try broadening your search criteria or removing some filters.</p>
+          <button id="modify-search-btn" class="btn-primary" type="button">Modify Search</button>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="state-box hidden">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p class="state-text">Unable to fetch candidates</p>
+          <p class="state-hint" id="error-detail"></p>
+          <button id="retry-btn" class="btn-primary" type="button">Retry</button>
+        </div>
+      </section>
+
+      <!-- Sources Section -->
+      <section id="sources-section" class="sources-section">
+        <h3 class="sources-title">Supported Sources</h3>
+        <div class="sources-grid">
+          <div class="source-item"><div class="source-icon" style="background:#24292f"><svg viewBox="0 0 16 16" width="14" height="14"><path fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></div><span>GitHub</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#0A66C2"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></div><span>LinkedIn</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#2164F3"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M4 4h16v16H4V4zm4.5 4.5c0-.83.67-1.5 1.5-1.5h4c.83 0 1.5.67 1.5 1.5v1c0 .83-.67 1.5-1.5 1.5h-1v5.5h-2V11h-1c-.83 0-1.5-.67-1.5-1.5v-1z"/></svg></div><span>Indeed</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#F48024"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M15 20H5v-2h10v2zm2-4H7v-2h10v2zm2-4H9V8h10v4zM3 4v16h18V4H3z"/></svg></div><span>Stack Overflow</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#20BEFF"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div><span>Kaggle</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#000"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V9h2v7zm4 0h-2V9h2v7z"/></svg></div><span>Wellfound</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#0A0A0A"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M7.42 10c0-.47.28-.87.7-1.16L12 5.88l3.88 2.96c.42.29.7.69.7 1.16V17c0 .55-.45 1-1 1H8.42c-.55 0-1-.45-1-1v-7z"/></svg></div><span>DEV.to</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#EA4C89"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="10" fill="#EA4C89"/><path fill="#fff" d="M8.56 7.06c1.17 1.51 1.92 3.37 2.16 5.36-1.07-.15-2.15-.15-2.99.01-.15-1.07.53-2.13 1.44-2.93l.39-.44z"/></svg></div><span>Dribbble</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#13ADA5"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M0 17.723l2.027 3.505h.001a2.424 2.424 0 002.164 1.333h13.457l-2.792-4.838H0zm24-2.49l-4.397-7.618a2.428 2.428 0 00-2.107-1.222H7.384l5.364 9.291 11.252.002z"/></svg></div><span>ArtStation</span></div>
+          <div class="source-item"><div class="source-icon" style="background:#4285F4"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></div><span>Google Scholar</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <h2>Settings</h2>
+      <label for="settings-url">API Base URL</label>
+      <input id="settings-url" type="url" spellcheck="false" />
+      <label for="settings-key">API Key <span class="label-hint">(X-API-Key, optional)</span></label>
+      <input id="settings-key" type="password" spellcheck="false" placeholder="leave empty if not required" />
+      <div class="modal-actions">
+        <button id="settings-cancel" class="btn-ghost" type="button">Cancel</button>
+        <button id="settings-save" class="btn-primary" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced Filters Modal -->
+  <div id="adv-filter-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="sheet-handle"></div>
+      <h2>Advanced Filters</h2>
+      <div class="filter-group">
+        <label class="filter-label">Match Type</label>
+        <div class="filter-pills" id="adv-match-pills">
+          <button class="fpill active" data-filter="all">All</button>
+          <button class="fpill" data-filter="strong">Strong Match</button>
+          <button class="fpill" data-filter="good">Good Match</button>
+          <button class="fpill" data-filter="review">Needs Review</button>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Minimum Match Score</label>
+        <div class="filter-slider-row">
+          <input type="range" id="adv-threshold" min="0" max="95" value="0" step="5" />
+          <span id="adv-threshold-val">0%</span>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Sort By</label>
+        <div class="filter-pills" id="adv-sort-pills">
+          <button class="fpill active" data-sort="score">Best Match</button>
+          <button class="fpill" data-sort="name">Name</button>
+        </div>
+      </div>
+      <div class="sheet-actions">
+        <button id="adv-filter-reset" class="btn-ghost" type="button">Reset</button>
+        <button id="adv-filter-apply" class="btn-primary btn-full" type="button">Apply Filters</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
