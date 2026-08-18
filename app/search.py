@@ -102,9 +102,38 @@ class TavilySearch:
         return out
 
 
+class SearxngSearch:
+    def __init__(self, base_url: str, timeout: float = 10.0):
+        self.base_url = base_url
+        self.timeout = timeout
+
+    def search(self, query: str, max_results: int = 5):
+        resp = httpx.get(
+            f"{self.base_url}/search",
+            params={"q": query, "format": "json", "categories": "general"},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        out = []
+        for row in data.get("results", [])[:max_results]:
+            url = row.get("url") or ""
+            if not url:
+                continue
+            out.append(
+                {
+                    "title": row.get("title") or "",
+                    "url": url,
+                    "snippet": row.get("content") or "",
+                }
+            )
+        return out
+
+
 class SearchClient:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.searxng = SearxngSearch(settings.searxng_url, timeout=settings.search_timeout)
         self.tavily = TavilySearch(settings.tavily_api_key, timeout=settings.search_timeout) if settings.tavily_api_key else None
         self.ddg = DuckDuckGoSearch(timeout=min(_DDG_TIMEOUT, settings.search_timeout))
         self.breakers = {}
@@ -130,7 +159,10 @@ class SearchClient:
             return []
 
         error = None
-        attempts = [(self.tavily, 0), (self.ddg, 0)] if self.tavily is not None else [(self.ddg, 0)]
+        attempts = [(self.searxng, 0)]
+        if self.tavily is not None:
+            attempts.append((self.tavily, 0))
+        attempts.append((self.ddg, 0))
         for backend, sleep_secs in attempts:
             if backend is None:
                 continue

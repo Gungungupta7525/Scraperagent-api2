@@ -72,7 +72,8 @@ The base URL and API key can also be changed from the Settings modal.
 | `GROQ_API_KEY` | Yes | Primary LLM |
 | `GROQ_MODEL` | No | Override model |
 | `GEMINI_API_KEY` | No | LLM fallback (Gemini Flash) |
-| `TAVILY_API_KEY` | No | **Primary** search backend when set (free tier: 1,000 searches/mo at app.tavily.com); falls back to DuckDuckGo otherwise |
+| `TAVILY_API_KEY` | No | Optional backup search (free tier: 1,000 searches/mo at app.tavily.com); only used if SearXNG and DuckDuckGo both fail |
+| `SEARXNG_URL` | No | Primary search backend (free, no key). Default: `https://search.ononoki.org`. Falls back to Tavily → DuckDuckGo. |
 | `API_KEY` | No | If set, clients must send `X-API-Key` |
 | `CORS_ORIGINS` | No | Defaults to `*` |
 
