@@ -172,7 +172,11 @@
   }
 
   function applyFilterAndSort() {
-    let filtered = allCandidates.filter((c) => {
+    const pool = currentView === "shortlisted"
+      ? allCandidates.filter((c) => shortlisted.has(c.url))
+      : allCandidates;
+
+    let filtered = pool.filter((c) => {
       const score = c.relevance_score || 0;
       if (score * 100 < threshold) return false;
       if (activeFilter !== "all" && matchCategory(score) !== activeFilter) return false;
@@ -183,7 +187,13 @@
       filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     }
 
-    renderStats();
+    if (currentView === "shortlisted") {
+      resultsTitle.textContent = `${filtered.length} Shortlisted Candidate${filtered.length !== 1 ? "s" : ""}`;
+      emptyState.classList.toggle("hidden", filtered.length > 0);
+      candidatesList.classList.toggle("hidden", filtered.length === 0);
+    } else {
+      renderStats();
+    }
     renderCards(filtered);
   }
 
@@ -285,6 +295,13 @@
     const actions = el("div", "cand-actions");
     const isShortlisted = shortlisted.has(c.url);
 
+    const aboutBtn = el("button", `btn-sm btn-about${isSelected ? " active" : ""}`, "About");
+    aboutBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectCandidate(c, index);
+    });
+    actions.appendChild(aboutBtn);
+
     const shortBtn = el("button", `btn-sm${isShortlisted ? " shortlisted" : ""}`, isShortlisted ? "Shortlisted" : "Shortlist");
     shortBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -372,7 +389,7 @@
           <table class="requirement-table">
             ${c.location ? `<tr><td>Location</td><td>${escapeHtml(c.location)}</td></tr>` : ""}
             ${c.experience ? `<tr><td>Experience</td><td>${escapeHtml(c.experience)}</td></tr>` : ""}
-            ${c.source ? `<tr><td>Source</td><td>${sourceBadgeHtml(c.source, c.url)}</td></tr>` : ""}
+            ${c.source ? `<tr><td>Source</td><td>${escapeHtml(SOURCES[c.source]?.name || c.source)}</td></tr>` : ""}
             ${c.source && c.url ? `<tr><td>Profile</td><td>${sourceBadgeHtml(c.source, c.url)}</td></tr>` : ""}
           </table>
         </div>

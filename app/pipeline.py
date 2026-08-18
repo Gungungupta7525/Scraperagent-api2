@@ -56,7 +56,7 @@ class Pipeline:
         if not todo:
             return out
 
-        emit(f"Searching {len(todo)} sources\u2026")
+        emit(f"Searching 50+ sources\u2026")
 
         search_deadline = min(deadline, time.monotonic() + _SEARCH_PHASE_TIMEOUT)
         max_workers = min(15, len(todo))
