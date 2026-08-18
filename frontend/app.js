@@ -42,11 +42,10 @@
 
   const LS_URL = "scraperagent.api_base_url";
   const LS_KEY = "scraperagent.api_key";
-  const LS_SHORTLIST = "scraperagent.shortlist";
+  const LS_SHORTLIST = "scraperagent.shortlist_v2";
 
   let busy = false;
   let allCandidates = [];
-  let shortlisted = new Set(JSON.parse(localStorage.getItem(LS_SHORTLIST) || "[]"));
   let activeFilter = "all";
   let threshold = 0;
   let activeSort = "score";
@@ -54,21 +53,58 @@
   let selectedCandidateUrl = null;
   let currentView = "search";
 
+  /* --- persistent shortlisted candidates (url → full candidate object) --- */
+  let shortlistedMap = new Map();
+  (function loadShortlist() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_SHORTLIST) || "[]");
+      if (Array.isArray(raw)) {
+        if (raw.length > 0 && Array.isArray(raw[0])) {
+          shortlistedMap = new Map(raw);
+        } else if (raw.length > 0 && typeof raw[0] === "string") {
+          raw.forEach((url) => shortlistedMap.set(url, { url }));
+        }
+      }
+    } catch { shortlistedMap = new Map(); }
+  })();
+
   const shortlistCountEl = $("#shortlist-count");
 
   function saveShortlist() {
-    localStorage.setItem(LS_SHORTLIST, JSON.stringify([...shortlisted]));
+    localStorage.setItem(LS_SHORTLIST, JSON.stringify([...shortlistedMap]));
     updateShortlistCount();
   }
 
   function updateShortlistCount() {
-    const count = allCandidates.filter((c) => shortlisted.has(c.url)).length;
+    const count = shortlistedMap.size;
     if (count > 0) {
       shortlistCountEl.textContent = count;
       shortlistCountEl.classList.remove("hidden");
     } else {
       shortlistCountEl.classList.add("hidden");
     }
+  }
+
+  /* --- search filters state --- */
+  let searchFilterRole = "";
+  let searchFilterExp = "";
+  let searchFilterLoc = "";
+
+  function matchesSearchFilters(c) {
+    if (searchFilterRole) {
+      const role = (c.role || c.headline || "").toLowerCase();
+      const name = (c.name || "").toLowerCase();
+      if (!role.includes(searchFilterRole) && !name.includes(searchFilterRole)) return false;
+    }
+    if (searchFilterExp) {
+      const exp = (c.experience || "").toLowerCase();
+      if (!exp.includes(searchFilterExp)) return false;
+    }
+    if (searchFilterLoc) {
+      const loc = (c.location || "").toLowerCase();
+      if (!loc.includes(searchFilterLoc)) return false;
+    }
+    return true;
   }
 
   /* ---------- settings ---------- */
@@ -176,9 +212,12 @@
   }
 
   function applyFilterAndSort() {
-    const pool = currentView === "shortlisted"
-      ? allCandidates.filter((c) => shortlisted.has(c.url))
-      : allCandidates;
+    let pool;
+    if (currentView === "shortlisted") {
+      pool = [...shortlistedMap.values()];
+    } else {
+      pool = allCandidates.filter((c) => matchesSearchFilters(c));
+    }
 
     let filtered = pool.filter((c) => {
       const score = c.relevance_score || 0;
@@ -298,7 +337,7 @@
     }
 
     const actions = el("div", "cand-actions");
-    const isShortlisted = shortlisted.has(c.url);
+    const isShortlisted = shortlistedMap.has(c.url);
 
     const aboutBtn = el("button", `btn-sm btn-about${isSelected ? " active" : ""}`, "About");
     aboutBtn.addEventListener("click", (e) => {
@@ -310,12 +349,12 @@
     const shortBtn = el("button", `btn-sm${isShortlisted ? " shortlisted" : ""}`, isShortlisted ? "Shortlisted" : "Shortlist");
     shortBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (shortlisted.has(c.url)) {
-        shortlisted.delete(c.url);
+      if (shortlistedMap.has(c.url)) {
+        shortlistedMap.delete(c.url);
         shortBtn.className = "btn-sm";
         shortBtn.textContent = "Shortlist";
       } else {
-        shortlisted.add(c.url);
+        shortlistedMap.set(c.url, { ...c });
         shortBtn.className = "btn-sm shortlisted";
         shortBtn.textContent = "Shortlisted";
       }
@@ -339,7 +378,7 @@
     const score = c.relevance_score || 0;
     const pct = Math.round(score * 100);
     const cat = matchCategory(score);
-    const isShortlisted = shortlisted.has(c.url);
+    const isShortlisted = shortlistedMap.has(c.url);
 
     let html = `
       <button class="detail-back-btn" id="detail-back-btn" style="display:none">
@@ -459,12 +498,13 @@
     if (detailShortBtn) {
       detailShortBtn.addEventListener("click", () => {
         const url = detailShortBtn.dataset.url;
-        if (shortlisted.has(url)) {
-          shortlisted.delete(url);
+        if (shortlistedMap.has(url)) {
+          shortlistedMap.delete(url);
           detailShortBtn.classList.remove("shortlisted");
           detailShortBtn.textContent = "Shortlist";
         } else {
-          shortlisted.add(url);
+          const cand = allCandidates.find((c) => c.url === url) || [...shortlistedMap.values()].find((c) => c.url === url) || { url };
+          shortlistedMap.set(url, { ...cand });
           detailShortBtn.classList.add("shortlisted");
           detailShortBtn.textContent = "Shortlisted";
         }
@@ -517,11 +557,9 @@
     const text = input.value.trim();
     if (!text || busy) return;
 
-    const filterRole = ($("#filter-role") || {}).value || "";
-    const filterExp = ($("#filter-experience") || {}).value || "";
-    const filterLoc = ($("#filter-location") || {}).value || "";
-    const extras = [filterRole, filterExp, filterLoc].filter(Boolean).join(", ");
-    const fullText = extras ? `${text}\n\nAdditional filters: ${extras}` : text;
+    searchFilterRole = ($("#filter-role") || {}).value.trim().toLowerCase();
+    searchFilterExp = ($("#filter-experience") || {}).value.trim().toLowerCase();
+    searchFilterLoc = ($("#filter-location") || {}).value.trim().toLowerCase();
 
     busy = true;
     sendBtn.disabled = true;
@@ -549,7 +587,7 @@
           "Content-Type": "application/json",
           ...(settings.apiKey ? { "X-API-Key": settings.apiKey } : {}),
         },
-        body: JSON.stringify({ job_description: fullText, max_candidates: CONFIG.MAX_CANDIDATES }),
+        body: JSON.stringify({ job_description: text, max_candidates: CONFIG.MAX_CANDIDATES }),
       });
 
       if (!res.ok) {
@@ -794,7 +832,10 @@
 
   function showShortlisted() {
     currentView = "shortlisted";
-    const items = allCandidates.filter((c) => shortlisted.has(c.url));
+    searchFilterRole = "";
+    searchFilterExp = "";
+    searchFilterLoc = "";
+    const items = [...shortlistedMap.values()];
     searchSection.classList.add("hidden");
     resultsSection.classList.remove("hidden");
     detailPanel.classList.remove("hidden");
@@ -826,17 +867,16 @@
       const header = el("div", "role-group-header");
       header.innerHTML = `<span class="role-group-name">${escapeHtml(role)}</span><span class="role-group-count">${count} candidate${count !== 1 ? "s" : ""}</span>`;
       candidatesList.appendChild(header);
-      groups[role].forEach((c) => {
-        const idx = items.indexOf(c);
-        candidatesList.appendChild(candidateCard(c, idx));
+      groups[role].forEach((c, i) => {
+        candidatesList.appendChild(candidateCard(c, i));
       });
     });
   }
 
   function currentViewCandidates() {
     let pool = currentView === "shortlisted"
-      ? allCandidates.filter((c) => shortlisted.has(c.url))
-      : allCandidates;
+      ? [...shortlistedMap.values()]
+      : allCandidates.filter((c) => matchesSearchFilters(c));
     let filtered = pool.filter((c) => {
       const score = c.relevance_score || 0;
       if (score * 100 < threshold) return false;

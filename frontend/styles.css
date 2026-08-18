@@ -1248,7 +1248,7 @@ html, body {
 }
 
 /* ==========================================================
-   RESPONSIVE — DESKTOP (>1024): wider detail panel
+   RESPONSIVE — DESKTOP (>1024): wider detail panel + bigger search
    ========================================================== */
 @media (min-width: 1024px) {
   .results-split {
@@ -1265,6 +1265,21 @@ html, body {
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--border-strong) transparent;
+  }
+  .search-section {
+    max-width: 920px;
+    padding: 56px 40px 40px;
+  }
+  .search-title {
+    font-size: 36px;
+  }
+  .search-subtitle {
+    font-size: 16px;
+  }
+  .search-textarea-wrap textarea {
+    min-height: 180px;
+    font-size: 16px;
+    padding: 18px 20px;
   }
 }
 
