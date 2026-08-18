@@ -192,14 +192,15 @@
       emptyState.classList.toggle("hidden", filtered.length > 0);
       candidatesList.classList.toggle("hidden", filtered.length === 0);
     } else {
-      renderStats();
+      $("#results-stats").classList.remove("hidden");
+      renderStats(filtered);
     }
     renderCards(filtered);
   }
 
-  function renderStats() {
+  function renderStats(pool) {
     const counts = { strong: 0, good: 0, review: 0 };
-    allCandidates.forEach((c) => {
+    (pool || allCandidates).forEach((c) => {
       const score = c.relevance_score || 0;
       if (score * 100 >= threshold) counts[matchCategory(score)]++;
     });
@@ -337,6 +338,10 @@
     const isShortlisted = shortlisted.has(c.url);
 
     let html = `
+      <button class="detail-back-btn" id="detail-back-btn" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
       <div class="detail-header">
         <div class="detail-avatar">${getInitials(c.name)}</div>
         <div class="detail-header-info">
@@ -423,6 +428,15 @@
     detailContent.innerHTML = html;
     detailPlaceholder.classList.add("hidden");
     detailContent.classList.remove("hidden");
+
+    /* back button on mobile */
+    const backBtn = detailContent.querySelector("#detail-back-btn");
+    if (backBtn && window.innerWidth < 768) {
+      backBtn.style.display = "inline-flex";
+      backBtn.addEventListener("click", () => {
+        detailPanel.classList.remove("mobile-open");
+      });
+    }
 
     /* wire up tabs */
     $$(".detail-tab", detailContent).forEach((tab) => {
@@ -712,6 +726,7 @@
     selectedCandidateUrl = null;
     streamStatus.classList.add("hidden");
     searchSection.classList.remove("hidden");
+    $("#results-stats").classList.remove("hidden");
     input.value = "";
     input.focus();
   }
@@ -778,22 +793,41 @@
     selectedCandidateUrl = null;
     errorState.classList.add("hidden");
     skeletonList.classList.add("hidden");
+    $("#results-stats").classList.add("hidden");
     if (items.length === 0) {
       candidatesList.innerHTML = "";
       emptyState.classList.remove("hidden");
+      candidatesList.classList.add("hidden");
       resultsTitle.textContent = "No Shortlisted Candidates";
       return;
     }
     emptyState.classList.add("hidden");
     resultsTitle.textContent = `${items.length} Shortlisted Candidate${items.length !== 1 ? "s" : ""}`;
-    renderCards(items);
+    const groups = {};
+    items.forEach((c) => {
+      const role = c.role || c.headline || "Other";
+      if (!groups[role]) groups[role] = [];
+      groups[role].push(c);
+    });
+    candidatesList.innerHTML = "";
+    candidatesList.classList.remove("hidden");
+    Object.keys(groups).sort().forEach((role) => {
+      const count = groups[role].length;
+      const header = el("div", "role-group-header");
+      header.innerHTML = `<span class="role-group-name">${escapeHtml(role)}</span><span class="role-group-count">${count} candidate${count !== 1 ? "s" : ""}</span>`;
+      candidatesList.appendChild(header);
+      groups[role].forEach((c) => {
+        const idx = items.indexOf(c);
+        candidatesList.appendChild(candidateCard(c, idx));
+      });
+    });
   }
 
   function currentViewCandidates() {
-    if (currentView === "shortlisted") {
-      return allCandidates.filter((c) => shortlisted.has(c.url));
-    }
-    let filtered = allCandidates.filter((c) => {
+    let pool = currentView === "shortlisted"
+      ? allCandidates.filter((c) => shortlisted.has(c.url))
+      : allCandidates;
+    let filtered = pool.filter((c) => {
       const score = c.relevance_score || 0;
       if (score * 100 < threshold) return false;
       if (activeFilter !== "all" && matchCategory(score) !== activeFilter) return false;
