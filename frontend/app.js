@@ -608,13 +608,13 @@
   $("#advanced-filters-btn").addEventListener("click", openAdvFilterModal);
   $("#adv-filter-modal .modal-backdrop").addEventListener("click", () => advFilterModal.classList.add("hidden"));
 
-  $("#adv-filter-match-pills").addEventListener("click", (e) => {
+  $("#adv-match-pills").addEventListener("click", (e) => {
     const pill = e.target.closest(".fpill");
     if (!pill) return;
     $$(".fpill", $("#adv-match-pills")).forEach((p) => p.classList.remove("active"));
     pill.classList.add("active");
   });
-  $("#adv-filter-sort-pills").addEventListener("click", (e) => {
+  $("#adv-sort-pills").addEventListener("click", (e) => {
     const pill = e.target.closest(".fpill");
     if (!pill) return;
     $$(".fpill", $("#adv-sort-pills")).forEach((p) => p.classList.remove("active"));
@@ -689,6 +689,8 @@
           newSearch();
         } else if (page === "shortlisted") {
           showShortlisted();
+        } else if (page === "settings") {
+          openSettings();
         }
         if (window.innerWidth < 768) toggleSidebar();
       });
@@ -709,7 +711,6 @@
     $("#retry-btn").addEventListener("click", send);
 
     /* settings */
-    $("#settings-btn")?.addEventListener("click", openSettings);
     $("#settings-save").addEventListener("click", saveSettings);
     $("#settings-cancel").addEventListener("click", () => settingsModal.classList.add("hidden"));
     settingsModal.querySelector(".modal-backdrop").addEventListener("click", () => settingsModal.classList.add("hidden"));
