@@ -28,6 +28,9 @@ class Settings:
         self.max_results_per_source = int(env.get("MAX_RESULTS_PER_SOURCE", "20"))
         self.max_scrapes = int(env.get("MAX_SCRAPES", "5"))
 
+        self.cache_ttl_seconds = float(env.get("CACHE_TTL_SECONDS", "1800"))
+        self.cache_max_entries = int(env.get("CACHE_MAX_ENTRIES", "50"))
+
     @property
     def llm_configured(self) -> bool:
         return bool(self.groq_api_key or self.gemini_api_key)

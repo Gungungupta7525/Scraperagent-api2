@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import concurrent.futures
+import copy
+import hashlib
 import logging
+import threading
 import time
 import unicodedata
+from collections import OrderedDict
 from urllib.parse import urlparse
 
 from .heuristics import extract_heuristic_candidates, rank_candidates
@@ -16,6 +20,58 @@ _SEARCH_PHASE_TIMEOUT = 25.0
 _DISCOVERY_MULTIPLIER = 3
 
 log = logging.getLogger("scraperagent.pipeline")
+
+
+class SearchCache:
+    """Thread-safe in-memory LRU cache for search results with TTL expiry."""
+
+    def __init__(self, ttl_seconds: float = 1800.0, max_entries: int = 50):
+        self._ttl = ttl_seconds
+        self._max = max_entries
+        self._lock = threading.Lock()
+        self._data: dict[str, tuple[float, dict]] = {}
+        self._order: OrderedDict[str, None] = OrderedDict()
+
+    @staticmethod
+    def make_key(job_description: str, sources: list, max_candidates: int) -> str:
+        norm_jd = " ".join(job_description.lower().split())
+        payload = f"{norm_jd}|{'|'.join(sorted(sources))}|{max_candidates}"
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+    def get(self, key: str) -> dict | None:
+        try:
+            with self._lock:
+                entry = self._data.get(key)
+                if entry is None:
+                    log.debug("[CACHE] MISS key=%s", key[:12])
+                    return None
+                ts, result = entry
+                if time.monotonic() - ts > self._ttl:
+                    log.debug("[CACHE] EXPIRED key=%s", key[:12])
+                    del self._data[key]
+                    self._order.pop(key, None)
+                    return None
+                self._order.move_to_end(key)
+                log.debug("[CACHE] HIT key=%s", key[:12])
+                return copy.deepcopy(result)
+        except Exception as exc:
+            log.warning("[CACHE] get error: %s", exc)
+            return None
+
+    def put(self, key: str, result: dict) -> None:
+        try:
+            with self._lock:
+                if key in self._data:
+                    del self._data[key]
+                    self._order.pop(key, None)
+                while len(self._data) >= self._max:
+                    oldest_key, _ = self._order.popitem(last=False)
+                    self._data.pop(oldest_key, None)
+                self._data[key] = (time.monotonic(), result)
+                self._order[key] = None
+                log.debug("[CACHE] STORE key=%s entries=%d", key[:12], len(self._data))
+        except Exception as exc:
+            log.warning("[CACHE] put error: %s", exc)
 
 
 class Pipeline:
