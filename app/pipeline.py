@@ -1,16 +1,21 @@
-"""Pipeline orchestrator — step-by-step candidate sourcing with timeouts."""
+"""Pipeline orchestrator — multi-query search, robust dedup, debug logging."""
 
 from __future__ import annotations
 
 import concurrent.futures
+import logging
 import time
+import unicodedata
 from urllib.parse import urlparse
 
 from .heuristics import extract_heuristic_candidates, rank_candidates
 from .queries import build_default_queries
 from .profiles import profile_source
 
-_SEARCH_PHASE_TIMEOUT = 10.0
+_SEARCH_PHASE_TIMEOUT = 25.0
+_DISCOVERY_MULTIPLIER = 3
+
+log = logging.getLogger("scraperagent.pipeline")
 
 
 class Pipeline:
@@ -25,68 +30,74 @@ class Pipeline:
         self.search.reset()
 
         queries = build_default_queries(job_description, sources)
+        emit(f"Running {len(queries)} search queries across {len(sources)} sources…")
 
         results = self._run_searches(queries, deadline, emit)
 
         pre_dedup = sum(len(r) for r in results.values())
         results = self._dedup_results(results)
         post_dedup = sum(len(r) for r in results.values())
-        if pre_dedup != post_dedup:
-            emit(f"Deduplicated {pre_dedup} results → {post_dedup}")
+        dupes_removed = pre_dedup - post_dedup
+        if dupes_removed:
+            emit(f"Removed {dupes_removed} duplicate URLs")
 
         candidates = extract_heuristic_candidates(job_description, results)
 
-        emit(f"Extracted {len(candidates)} relevant candidates")
+        accepted = len(candidates)
+        emit(f"Extracted {accepted} candidates from {post_dedup} search results")
 
-        if len(candidates) < 10 and self.llm_adapters:
+        if accepted < 10 and self.llm_adapters:
             candidates = self._llm_fallback(job_description, results, deadline, emit, candidates)
+            emit(f"LLM fallback produced {len(candidates)} total candidates")
 
-        return rank_candidates(candidates, max_candidates), results
+        discover_target = max(max_candidates * _DISCOVERY_MULTIPLIER, 50)
+        ranked = rank_candidates(candidates, max_candidates)
+
+        emit(f"Ranked {len(ranked)} candidates (from {accepted} extracted)")
+        return ranked, results
 
     def _run_searches(self, queries: list, deadline: float, emit):
         out = {}
-        seen = set()
         todo = []
         for item in queries:
             source = item["source"]
-            if source in seen:
-                continue
-            seen.add(source)
-            todo.append((source, item["query"]))
+            query = item["query"]
+            todo.append((source, query))
         if not todo:
             return out
 
-        emit(f"Searching 50+ sources\u2026")
-
         search_deadline = min(deadline, time.monotonic() + _SEARCH_PHASE_TIMEOUT)
-        max_workers = min(15, len(todo))
+        max_workers = min(20, len(todo))
 
         pool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="search")
         futures = {
-            pool.submit(self.search.search_source, query, source, self.settings.max_results_per_source): source
+            pool.submit(self.search.search_source, query, source, self.settings.max_results_per_source): (source, query)
             for source, query in todo
         }
         done, _ = concurrent.futures.wait(futures, timeout=max(1.0, search_deadline - time.monotonic()))
 
         for future in done:
-            source = futures[future]
+            source, query = futures[future]
             try:
-                out[source] = future.result(timeout=0)
+                results = future.result(timeout=0)
             except Exception:
+                results = []
+            if source not in out:
                 out[source] = []
+            out[source].extend(results)
 
         pool.shutdown(wait=False, cancel_futures=True)
 
-        done_count = len(out)
+        done_count = sum(1 for r in out.values() if r)
         total_count = len(todo)
         total_results = sum(len(r) for r in out.values())
-        emit(f"Searched {done_count}/{total_count} sources \u2014 {total_results} results")
+        emit(f"Searches completed: {done_count}/{total_count} queries returned results — {total_results} raw results")
 
         return out
 
     def _dedup_results(self, results_by_source: dict) -> dict:
-        seen_urls: set[str] = set()
-        normalized: dict[str, str] = {}
+        seen_canonicals: set[str] = set()
+        seen_names: dict[tuple[str, str], str] = {}
         deduped = {}
         for source, results in results_by_source.items():
             clean = []
@@ -94,13 +105,27 @@ class Pipeline:
                 url = (row.get("url") or "").strip()
                 if not url:
                     continue
-                canon = normalized.get(url)
-                if canon is None:
-                    canon = _canonical_url(url)
-                    normalized[url] = canon
-                if canon in seen_urls:
+
+                canonical = _canonical_url(url)
+                if canonical in seen_canonicals:
                     continue
-                seen_urls.add(canon)
+
+                from .heuristics import name_from_url
+                name = name_from_url(url)
+                if name:
+                    name_key = (name.lower(), source)
+                    if name_key in seen_names:
+                        existing_url = seen_names[name_key]
+                        if len(url) > len(existing_url):
+                            seen_canonicals.discard(_canonical_url(existing_url))
+                            seen_canonicals.add(canonical)
+                            seen_names[name_key] = url
+                            clean = [r for r in clean if r.get("url") != existing_url]
+                            clean.append(row)
+                        continue
+                    seen_names[name_key] = url
+
+                seen_canonicals.add(canonical)
                 clean.append(row)
             deduped[source] = clean
         return deduped
@@ -110,7 +135,7 @@ class Pipeline:
             if self._remaining(deadline) <= 5:
                 break
             try:
-                emit(f"Enhancing with {adapter.name}\u2026")
+                emit(f"Enhancing with {adapter.name}…")
                 evidence = _format_evidence(results, {})
                 system = (
                     "You are a recruiting agent. Extract candidate profiles from the search results below "
@@ -152,7 +177,7 @@ def _canonical_url(url: str) -> str:
     try:
         p = urlparse(url)
         host = (p.hostname or "").lower().removeprefix("www.")
-        path = p.path.rstrip("/")
+        path = p.path.rstrip("/").lower()
         return f"{host}{path}"
     except Exception:
         return url.lower().rstrip("/")

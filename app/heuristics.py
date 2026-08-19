@@ -46,6 +46,11 @@ _TECH_SKILLS = [
     "c", "elixir", "erlang", "haskell", "clojure",
 ]
 
+_EXPERIENCE_SIGNALS = [
+    "years", "yrs", "experience", "senior", "sr.", "lead", "principal", "staff",
+    "architect", "manager", "director", "vp", "head of",
+]
+
 
 def name_from_url(url: str) -> str | None:
     if "scholar.google.com/" in url.lower():
@@ -65,6 +70,11 @@ def name_from_url(url: str) -> str | None:
     if parts and parts[0].isdigit() and len(parts) > 1:
         parts = parts[1:]
     if not parts:
+        return None
+    non_profile_segments = {"questions", "answers", "q", "a", "problems", "contests", "tags",
+                            "posts", "articles", "topics", "feeds", "search", "jobs",
+                            "collections", "reviews", "products", "docs"}
+    if parts[0].lower() in non_profile_segments:
         return None
     name_part = parts[0].lstrip("@")
     if not re.search(r"[a-z0-9]", name_part):
@@ -293,17 +303,25 @@ def score_candidate(job_description: str, title: str, snippet: str) -> float:
     snippet_hits = sum(1 for s in jd_skills if _skill_in_text(s, snippet_lower))
     density = snippet_hits / max(len(jd_skills), 1)
 
-    raw = skill_ratio * 0.50 + role_ratio * 0.30 + seniority * 0.10 + density * 0.10
+    raw = skill_ratio * 0.40 + role_ratio * 0.25 + seniority * 0.10 + density * 0.15
 
-    if skill_hits == 0:
+    if skill_hits == 0 and total_title_hits == 0:
         raw = min(raw, 0.08)
-    elif len(jd_skills) > 3 and skill_hits == 1:
-        raw = min(raw, 0.30)
+    elif skill_hits == 0 and total_title_hits >= 1:
+        raw = max(raw, 0.18)
+    elif skill_hits == 1 and len(jd_skills) > 3:
+        raw = max(raw, 0.25)
+    elif skill_hits == 1:
+        raw = max(raw, 0.30)
 
     if skill_hits >= 3:
+        raw += 0.08
+    if skill_hits >= 5:
         raw += 0.05
     if total_title_hits >= 2:
-        raw += 0.05
+        raw += 0.06
+    if density >= 0.5:
+        raw += 0.04
 
     return round(min(0.95, max(0.05, raw)), 2)
 
@@ -324,6 +342,31 @@ _BOILERPLATE = re.compile(
 )
 
 _HEADING_RE = re.compile(r"^#+\s+", re.MULTILINE)
+
+_SEARCH_PAGE_PATTERNS = re.compile(
+    r"(?:"
+    r"/search[/?]|/jobs[/?]|/listings[/?]|/browse[/?]|/explore[/?]|/topics\b|/tags\b|"
+    r"all repositories|repositories\b.*\bpage|members\b.*\bpage|"
+    r"/companies\b|/organizations\b|/categories\b|/collections\b|"
+    r"/resume[s]?\b|/job[s]?\b|/career[s]?\b|/hiring\b|/apply\b|"
+    r"sign\s*up|register|create\s+account|pricing|features\b|"
+    r"/trending|/popular|/featured|/directory\b|"
+    r"tab=repositories|tab=projects"
+    r")",
+    re.I,
+)
+
+
+def _is_search_or_listing_page(url: str, title: str) -> bool:
+    url_lower = url.lower()
+    title_lower = title.lower()
+    if _SEARCH_PAGE_PATTERNS.search(url_lower):
+        return True
+    if _SEARCH_PAGE_PATTERNS.search(title_lower):
+        return True
+    if re.search(r"/repos(?:itories)?(?:\?|/page)", url_lower):
+        return True
+    return False
 
 
 def _clean_snippet(snippet: str) -> str:
@@ -346,6 +389,8 @@ def extract_heuristic_candidates(job_description: str, results_by_source: dict) 
     jd_skills = _extract_skills(job_description)
     candidates = []
     seen = set()
+    rejected_search_page = 0
+    rejected_low_score = 0
     for source, results in results_by_source.items():
         for row in results or []:
             url = (row.get("url") or "").strip()
@@ -358,13 +403,19 @@ def extract_heuristic_candidates(job_description: str, results_by_source: dict) 
             title = (row.get("title") or "").strip()
             raw_snippet = (row.get("snippet") or "").strip()
             snippet = _clean_snippet(raw_snippet)
+
+            if _is_search_or_listing_page(url, title):
+                rejected_search_page += 1
+                continue
+
             evidence = f"{title} {snippet}"
 
             name = name_from_url(url) or re.sub(r"\s*[|–—]\s*.*$", "", title).strip() or None
             headline = re.sub(r"\s*[|–—]\s*(?:LinkedIn|GitHub|DEV|Hashnode|Wellfound|Indeed|Kaggle).*$", "", title, flags=re.IGNORECASE).strip() or None
             score = score_candidate(job_description, title, snippet)
 
-            if score < 0.15:
+            if score < 0.10:
+                rejected_low_score += 1
                 continue
 
             skills = _extract_candidate_skills(snippet, jd_skills)
@@ -391,12 +442,46 @@ def extract_heuristic_candidates(job_description: str, results_by_source: dict) 
     return candidates
 
 
+def _parse_experience_years(experience: str | None) -> int | None:
+    if not experience:
+        return None
+    m = re.search(r"(\d+)", experience)
+    return int(m.group(1)) if m else None
+
+
 def rank_candidates(candidates: list, max_candidates: int) -> list:
-    ranked = sorted(
-        candidates,
-        key=lambda c: (c.get("relevance_score") is not None, c.get("relevance_score") or 0.0),
-        reverse=True,
-    )[:max_candidates]
-    for index, candidate in enumerate(ranked, start=1):
-        candidate["rank"] = index
+    if not candidates:
+        return []
+
+    scored = []
+    for c in candidates:
+        relevance = c.get("relevance_score") or 0.0
+        skills = c.get("skills") or []
+        skill_depth = min(1.0, len(skills) / 5.0) * 0.20
+
+        role_match = 0.0
+        if c.get("role"):
+            role_match = min(1.0, len(c["role"].split()) / 2.0) * 0.15
+
+        exp_years = _parse_experience_years(c.get("experience"))
+        exp_score = 0.0
+        if exp_years is not None:
+            if exp_years <= 2:
+                exp_score = 0.05
+            elif exp_years <= 5:
+                exp_score = 0.10
+            elif exp_years <= 10:
+                exp_score = 0.15
+            else:
+                exp_score = 0.12
+
+        location_bonus = 0.05 if c.get("location") else 0.0
+
+        combined = relevance + skill_depth + role_match + exp_score + location_bonus
+        scored.append((combined, c))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    ranked = [c for _, c in scored[:max_candidates]]
+    for i, c in enumerate(ranked, start=1):
+        c["rank"] = i
     return ranked

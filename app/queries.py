@@ -1,10 +1,11 @@
-"""Template-based query generation — no LLM dependency."""
+"""Template-based query generation — multiple complementary queries per source."""
 
 from __future__ import annotations
 
 import re
 from typing import List
 
+from .heuristics import _extract_roles, _extract_skills, _extract_seniority
 from .sources import SOURCE_TEMPLATES, CATEGORY_SOURCES, CATEGORY_KEYWORDS, MAX_SOURCES_PER_REQUEST
 
 _STOPWORDS = {
@@ -26,9 +27,45 @@ def _query_terms(job_description: str) -> str:
     return re.sub(r"\s+", " ", job_description).strip()[:150]
 
 
-def build_default_queries(job_description: str, sources: list) -> list:
+def _build_multi_queries(job_description: str, source: str) -> list[str]:
+    """Build 2-4 complementary queries per source to maximise discovery."""
+    template = SOURCE_TEMPLATES.get(source, "site:{source} {{terms}}")
     terms = _query_terms(job_description)
-    return [{"source": s, "query": SOURCE_TEMPLATES[s].format(terms=terms)} for s in sources]
+    queries = []
+
+    primary = template.format(terms=terms)
+    queries.append(primary)
+
+    roles = _extract_roles(job_description)
+    skills = _extract_skills(job_description)
+    seniority = _extract_seniority(job_description)
+
+    if roles:
+        role_q = template.format(terms=" ".join(roles[:3]))
+        if role_q != primary:
+            queries.append(role_q)
+
+    if skills:
+        skill_terms = " ".join(skills[:4])
+        skill_q = template.format(terms=skill_terms)
+        if skill_q not in queries:
+            queries.append(skill_q)
+
+    if seniority and seniority not in ("mid",) and roles:
+        senior_q = template.format(terms=f"{seniority} {' '.join(roles[:2])}")
+        if senior_q not in queries:
+            queries.append(senior_q)
+
+    return queries
+
+
+def build_default_queries(job_description: str, sources: list) -> list:
+    """Build multiple queries per source for broader discovery."""
+    out = []
+    for s in sources:
+        for q in _build_multi_queries(job_description, s):
+            out.append({"source": s, "query": q})
+    return out
 
 
 def _categories_for(job_description: str) -> List[str]:
