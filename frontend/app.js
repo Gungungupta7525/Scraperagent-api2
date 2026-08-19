@@ -152,20 +152,39 @@
     if (!text) return null;
     const t = text.toLowerCase().replace(/\s+/g, " ").trim();
 
-    const rangeMatch = t.match(/(\d+)\s*[-–]\s*(\d+)\s*(?:years?|yrs?)/);
+    // "over 10 years", "over 10+ years"
+    const overMatch = t.match(/over\s+(\d+)\+?\s*(?:years?|yrs?)/);
+    if (overMatch) {
+      return { min: parseInt(overMatch[1], 10), max: 999 };
+    }
+
+    // "more than 6 years"
+    const moreMatch = t.match(/more\s+than\s+(\d+)\+?\s*(?:years?|yrs?)/);
+    if (moreMatch) {
+      return { min: parseInt(moreMatch[1], 10), max: 999 };
+    }
+
+    // "10 to 15 years", "10-15 years", "10–15 years"
+    const rangeMatch = t.match(/(\d+)\s*[-–to]+\s*(\d+)\s*(?:years?|yrs?)/);
     if (rangeMatch) {
       return { min: parseInt(rangeMatch[1], 10), max: parseInt(rangeMatch[2], 10) };
+    }
+
+    // "5+ years", "5+years", "5 years+"
+    const plusMatch = t.match(/(\d+)\+\s*(?:years?|yrs?)|(\d+)\s*(?:years?|yrs?)\s*\+/);
+    if (plusMatch) {
+      const yrs = parseInt(plusMatch[1] || plusMatch[2], 10);
+      return { min: yrs, max: 999 };
     }
 
     if (t.match(/fresher|entry\s*level|intern|0\s*(?:years?|yrs?)/)) {
       return { min: 0, max: 1 };
     }
 
-    const yrsMatch = t.match(/(\d+)\+?\s*(?:years?|yrs?)/);
+    // "5 years of experience", "5 years experience", "5 yrs"
+    const yrsMatch = t.match(/(\d+)\s*(?:years?|yrs?)/);
     if (yrsMatch) {
-      const yrs = parseInt(yrsMatch[1], 10);
-      if (t.includes("+")) return { min: yrs, max: 999 };
-      return { min: yrs, max: yrs };
+      return { min: parseInt(yrsMatch[1], 10), max: parseInt(yrsMatch[1], 10) };
     }
 
     return null;
@@ -184,16 +203,10 @@
     if (rangeMatch) return { min: parseInt(rangeMatch[1], 10), max: parseInt(rangeMatch[2], 10) };
 
     const yrsMatch = t.match(/(\d+)\s*(?:years?|yrs?)/);
-    if (yrsMatch) {
-      const yrs = parseInt(yrsMatch[1], 10);
-      return { min: yrs, max: yrs + 2 };
-    }
+    if (yrsMatch) return { min: parseInt(yrsMatch[1], 10), max: 999 };
 
     const numMatch = t.match(/(\d+)/);
-    if (numMatch) {
-      const n = parseInt(numMatch[1], 10);
-      return { min: n, max: n + 2 };
-    }
+    if (numMatch) return { min: parseInt(numMatch[1], 10), max: 999 };
 
     return null;
   }

@@ -244,15 +244,39 @@ def _canonicalize_location(raw_matches: list[str]) -> str:
 
 def _extract_experience_from_text(text: str) -> str | None:
     t = text.lower()
-    m = re.search(r"(\d+)\s*[-–]\s*(\d+)\s*(?:years?|yrs?)", t)
+
+    # "over 10 years", "over10years", "over 10+ years"
+    m = re.search(r"over\s+(\d+)\+?\s*(?:years?|yrs?)", t)
+    if m:
+        return f"{m.group(1)}+ years"
+
+    # "more than 6 years", "morethan6years"
+    m = re.search(r"more\s+than\s+(\d+)\+?\s*(?:years?|yrs?)", t)
+    if m:
+        return f"{m.group(1)}+ years"
+
+    # "10 to 15 years", "10-15 years", "10–15 years"
+    m = re.search(r"(\d+)\s*[-–to]+\s*(\d+)\s*(?:years?|yrs?)", t)
     if m:
         return f"{m.group(1)}-{m.group(2)} years"
-    m = re.search(r"(\d+)\+?\s*(?:years?|yrs?)", t)
+
+    # "5+ years", "5+years", "5 years+"
+    m = re.search(r"(\d+)\+\s*(?:years?|yrs?)", t)
     if m:
-        yrs = int(m.group(1))
-        return f"{yrs}+ years" if "+" in m.group(0) else f"{m.group(1)} years"
+        return f"{int(m.group(1))}+ years"
+    m = re.search(r"(\d+)\s*(?:years?|yrs?)\s*\+", t)
+    if m:
+        return f"{int(m.group(1))}+ years"
+
+    # "5 years of experience", "5 years experience", "5 yrs experience"
+    m = re.search(r"(\d+)\s*(?:years?|yrs?)", t)
+    if m:
+        return f"{m.group(1)} years"
+
+    # "fresher", "entry level", "0 years"
     if re.search(r"\b(fresher|entry\s*level|junior|0\s*(?:years?|yrs?))\b", t):
         return "0 years"
+
     return None
 
 
@@ -422,7 +446,7 @@ def extract_heuristic_candidates(job_description: str, results_by_source: dict) 
             role_terms = _extract_roles(evidence)
             seniority = _extract_seniority(evidence)
             role = _build_role(seniority, role_terms, skills)
-            experience = _extract_experience_from_text(evidence)
+            experience = _extract_experience_from_text(f"{title} {raw_snippet}")
             location = _extract_location(evidence)
 
             candidates.append(

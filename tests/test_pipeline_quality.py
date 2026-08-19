@@ -270,6 +270,97 @@ class TestFullPipelineDiscovery:
         exp = _extract_experience_from_text("10+ years in software engineering")
         assert exp == "10+ years"
 
+    def test_experience_over_years(self):
+        exp = _extract_experience_from_text("over 10 years of experience in ML")
+        assert exp == "10+ years"
+
+    def test_experience_more_than_years(self):
+        exp = _extract_experience_from_text("more than 6 years working as a software engineer")
+        assert exp == "6+ years"
+
+    def test_experience_years_of_experience(self):
+        exp = _extract_experience_from_text("7 years of experience in machine learning")
+        assert exp == "7 years"
+
+    def test_experience_years_experience(self):
+        exp = _extract_experience_from_text("5 years experience building APIs")
+        assert exp == "5 years"
+
+    def test_experience_yrs(self):
+        exp = _extract_experience_from_text("3 yrs experience with React")
+        assert exp == "3 years"
+
+    def test_experience_plus_format(self):
+        exp = _extract_experience_from_text("5+years")
+        assert exp == "5+ years"
+
+    def test_experience_trailing_plus(self):
+        exp = _extract_experience_from_text("8 years+ of development")
+        assert exp == "8+ years"
+
+    def test_experience_range_dash(self):
+        exp = _extract_experience_from_text("5-8 years of experience")
+        assert exp == "5-8 years"
+
+    def test_experience_range_en_dash(self):
+        exp = _extract_experience_from_text("3–7 years in software")
+        assert exp == "3-7 years"
+
+    def test_experience_range_to(self):
+        exp = _extract_experience_from_text("10 to 15 years of leadership")
+        assert exp == "10-15 years"
+
+    def test_experience_fresher(self):
+        exp = _extract_experience_from_text("fresher looking for opportunities")
+        assert exp == "0 years"
+
+    def test_experience_entry_level(self):
+        exp = _extract_experience_from_text("entry level developer")
+        assert exp == "0 years"
+
+    def test_experience_junior(self):
+        exp = _extract_experience_from_text("junior software engineer")
+        assert exp == "0 years"
+
+    def test_experience_no_match_python3(self):
+        exp = _extract_experience_from_text("Python 3 developer")
+        assert exp is None
+
+    def test_experience_no_match_aws2024(self):
+        exp = _extract_experience_from_text("AWS 2024 certified")
+        assert exp is None
+
+    def test_experience_no_match_projects(self):
+        exp = _extract_experience_from_text("Built 5 projects using React")
+        assert exp is None
+
+    def test_experience_no_match_kubernetes(self):
+        exp = _extract_experience_from_text("Kubernetes 1.29 and Docker")
+        assert exp is None
+
+    def test_experience_no_match_empty(self):
+        exp = _extract_experience_from_text("")
+        assert exp is None
+
+    def test_experience_no_match_plain_title(self):
+        exp = _extract_experience_from_text("Senior Machine Learning Engineer | Python | PyTorch | Azure")
+        assert exp is None
+
+    def test_experience_mixed_case(self):
+        exp = _extract_experience_from_text("Over 12 Years of Experience in Data Science")
+        assert exp == "12+ years"
+
+    def test_experience_from_long_text(self):
+        long_text = (
+            "John Doe - Senior Software Engineer at TechCorp. "
+            "Building scalable distributed systems with Python and Go. "
+            "Machine Learning Engineer with 7 years of experience in NLP "
+            "and computer vision. Published 3 papers in top-tier conferences. "
+            "Previously at Google and Meta working on large-scale data pipelines."
+        )
+        exp = _extract_experience_from_text(long_text)
+        assert exp == "7 years"
+
     def test_skills_extraction(self):
         skills = _extract_skills("Python Django AWS Docker Kubernetes PostgreSQL")
         assert "python" in skills
