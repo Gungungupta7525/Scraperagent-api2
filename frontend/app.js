@@ -730,6 +730,9 @@
     const activeSortPill = $(".fpill.active", $("#adv-sort-pills"));
     activeSort = activeSortPill ? activeSortPill.dataset.sort : "score";
     threshold = parseInt($("#adv-threshold").value, 10);
+    searchFilterRole = ($("#filter-role") || {}).value.trim().toLowerCase();
+    searchFilterExp = ($("#filter-experience") || {}).value.trim().toLowerCase();
+    searchFilterLoc = ($("#filter-location") || {}).value.trim().toLowerCase();
     syncFilters();
     applyFilterAndSort();
     advFilterModal.classList.add("hidden");
@@ -739,6 +742,12 @@
     activeFilter = "all";
     activeSort = "score";
     threshold = 0;
+    searchFilterRole = "";
+    searchFilterExp = "";
+    searchFilterLoc = "";
+    ($("#filter-role") || {}).value = "";
+    ($("#filter-experience") || {}).value = "";
+    ($("#filter-location") || {}).value = "";
     syncFilters();
     applyFilterAndSort();
     advFilterModal.classList.add("hidden");
