@@ -108,6 +108,155 @@ def _extract_years(text: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+_LOCATION_PATTERNS = [
+    re.compile(r"\b(bangalore|bengaluru|bengalore)\b", re.I),
+    re.compile(r"\b(mumbai|bombay)\b", re.I),
+    re.compile(r"\b(chennai|madras)\b", re.I),
+    re.compile(r"\b(kolkata|calcutta)\b", re.I),
+    re.compile(r"\b(delhi|new\s+delhi|noida|gurgaon|gurugram|faridabad|ghaziabad)\b", re.I),
+    re.compile(r"\b(hyderabad|secunderabad)\b", re.I),
+    re.compile(r"\b(pune|poona)\b", re.I),
+    re.compile(r"\b(jaipur)\b", re.I),
+    re.compile(r"\b(ahmedabad|ahmadabad)\b", re.I),
+    re.compile(r"\b(indore)\b", re.I),
+    re.compile(r"\b(chandigarh)\b", re.I),
+    re.compile(r"\b(lucknow)\b", re.I),
+    re.compile(r"\b(coimbatore)\b", re.I),
+    re.compile(r"\b(kochi|cochin)\b", re.I),
+    re.compile(r"\b(agra)\b", re.I),
+    re.compile(r"\b(patna)\b", re.I),
+    re.compile(r"\b(bhopal)\b", re.I),
+    re.compile(r"\b(visakhapatnam|vizag)\b", re.I),
+    re.compile(r"\b(india)\b", re.I),
+    re.compile(r"\b(usa|united\s+states|us)\b", re.I),
+    re.compile(r"\b(uk|united\s+kingdom|great\s+britain|england)\b", re.I),
+    re.compile(r"\b(canada)\b", re.I),
+    re.compile(r"\b(germany)\b", re.I),
+    re.compile(r"\b(france)\b", re.I),
+    re.compile(r"\b(australia)\b", re.I),
+    re.compile(r"\b(singapore)\b", re.I),
+    re.compile(r"\b(dubai|uae|abu\s+dhabi)\b", re.I),
+    re.compile(r"\b(berlin|munich|frankfurt|hamburg)\b", re.I),
+    re.compile(r"\b(san\s+francisco|sf|new\s+york|nyc|seattle|austin|boston|chicago|los\s+angeles|la)\b", re.I),
+    re.compile(r"\b(remote)\b", re.I),
+]
+
+
+def _extract_location(text: str) -> str | None:
+    t = text.lower()
+    matches = []
+    for pat in _LOCATION_PATTERNS:
+        m = pat.search(t)
+        if m:
+            matches.append(m.group(1).strip())
+    if not matches:
+        return None
+    canonical = _canonicalize_location(matches)
+    return canonical
+
+
+_CITY_ALIASES = {
+    "bangalore": "Bengaluru, India",
+    "bengaluru": "Bengaluru, India",
+    "bengalore": "Bengaluru, India",
+    "mumbai": "Mumbai, India",
+    "bombay": "Mumbai, India",
+    "chennai": "Chennai, India",
+    "madras": "Chennai, India",
+    "kolkata": "Kolkata, India",
+    "calcutta": "Kolkata, India",
+    "delhi": "Delhi, India",
+    "new delhi": "Delhi, India",
+    "noida": "Noida, India",
+    "gurgaon": "Gurugram, India",
+    "gurugram": "Gurugram, India",
+    "faridabad": "Faridabad, India",
+    "ghaziabad": "Ghaziabad, India",
+    "hyderabad": "Hyderabad, India",
+    "secunderabad": "Hyderabad, India",
+    "pune": "Pune, India",
+    "poona": "Pune, India",
+    "jaipur": "Jaipur, India",
+    "ahmedabad": "Ahmedabad, India",
+    "ahmadabad": "Ahmedabad, India",
+    "indore": "Indore, India",
+    "chandigarh": "Chandigarh, India",
+    "lucknow": "Lucknow, India",
+    "coimbatore": "Coimbatore, India",
+    "kochi": "Kochi, India",
+    "cochin": "Kochi, India",
+    "agra": "Agra, India",
+    "patna": "Patna, India",
+    "bhopal": "Bhopal, India",
+    "visakhapatnam": "Visakhapatnam, India",
+    "vizag": "Visakhapatnam, India",
+    "usa": "USA",
+    "united states": "USA",
+    "us": "USA",
+    "uk": "UK",
+    "united kingdom": "UK",
+    "great britain": "UK",
+    "england": "UK",
+    "canada": "Canada",
+    "germany": "Germany",
+    "france": "France",
+    "australia": "Australia",
+    "singapore": "Singapore",
+    "dubai": "Dubai, UAE",
+    "uae": "Dubai, UAE",
+    "abu dhabi": "Abu Dhabi, UAE",
+    "berlin": "Berlin, Germany",
+    "munich": "Munich, Germany",
+    "frankfurt": "Frankfurt, Germany",
+    "hamburg": "Hamburg, Germany",
+    "san francisco": "San Francisco, USA",
+    "sf": "San Francisco, USA",
+    "new york": "New York, USA",
+    "nyc": "New York, USA",
+    "seattle": "Seattle, USA",
+    "austin": "Austin, USA",
+    "boston": "Boston, USA",
+    "chicago": "Chicago, USA",
+    "los angeles": "Los Angeles, USA",
+    "la": "Los Angeles, USA",
+    "remote": "Remote",
+    "india": "India",
+}
+
+
+def _canonicalize_location(raw_matches: list[str]) -> str:
+    for m in raw_matches:
+        low = m.lower().strip()
+        if low in _CITY_ALIASES:
+            return _CITY_ALIASES[low]
+    return raw_matches[0].strip().title() if raw_matches else None
+
+
+def _extract_experience_from_text(text: str) -> str | None:
+    t = text.lower()
+    m = re.search(r"(\d+)\s*[-–]\s*(\d+)\s*(?:years?|yrs?)", t)
+    if m:
+        return f"{m.group(1)}-{m.group(2)} years"
+    m = re.search(r"(\d+)\+?\s*(?:years?|yrs?)", t)
+    if m:
+        yrs = int(m.group(1))
+        return f"{yrs}+ years" if "+" in m.group(0) else f"{m.group(1)} years"
+    if re.search(r"\b(fresher|entry\s*level|junior|0\s*(?:years?|yrs?))\b", t):
+        return "0 years"
+    return None
+
+
+def _build_role(seniority: str, role_terms: list[str], skills: list[str]) -> str:
+    parts = []
+    if seniority and seniority not in ("mid",):
+        parts.append(seniority.capitalize())
+    if role_terms:
+        parts.append(role_terms[0].title())
+    elif skills:
+        parts.append(skills[0].title())
+    return " ".join(parts) if parts else None
+
+
 def score_candidate(job_description: str, title: str, snippet: str) -> float:
     jd_skills = _extract_skills(job_description)
     jd_roles = _extract_roles(job_description)
@@ -209,6 +358,8 @@ def extract_heuristic_candidates(job_description: str, results_by_source: dict) 
             title = (row.get("title") or "").strip()
             raw_snippet = (row.get("snippet") or "").strip()
             snippet = _clean_snippet(raw_snippet)
+            evidence = f"{title} {snippet}"
+
             name = name_from_url(url) or re.sub(r"\s*[|–—]\s*.*$", "", title).strip() or None
             headline = re.sub(r"\s*[|–—]\s*(?:LinkedIn|GitHub|DEV|Hashnode|Wellfound|Indeed|Kaggle).*$", "", title, flags=re.IGNORECASE).strip() or None
             score = score_candidate(job_description, title, snippet)
@@ -217,17 +368,22 @@ def extract_heuristic_candidates(job_description: str, results_by_source: dict) 
                 continue
 
             skills = _extract_candidate_skills(snippet, jd_skills)
+            role_terms = _extract_roles(evidence)
+            seniority = _extract_seniority(evidence)
+            role = _build_role(seniority, role_terms, skills)
+            experience = _extract_experience_from_text(evidence)
+            location = _extract_location(evidence)
 
             candidates.append(
                 {
                     "name": name,
-                    "role": headline,
+                    "role": role or headline,
                     "headline": headline,
                     "source": src,
                     "url": url,
-                    "location": None,
+                    "location": location,
                     "skills": skills,
-                    "experience": None,
+                    "experience": experience,
                     "relevance_score": score,
                     "summary": snippet[:200] or None,
                 }

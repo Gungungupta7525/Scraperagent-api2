@@ -90,19 +90,208 @@
   let searchFilterExp = "";
   let searchFilterLoc = "";
 
+  /* --- role normalization & synonym matching --- */
+  const _ROLE_SYNONYMS = [
+    ["engineer", "developer", "swe"],
+    ["backend", "back-end", "back end", "server-side", "serverside", "backend engineer", "backend developer"],
+    ["frontend", "front-end", "front end", "client-side", "clientside", "frontend engineer", "frontend developer", "ui engineer", "ui developer"],
+    ["fullstack", "full-stack", "full stack", "full stack engineer", "full stack developer"],
+    ["devops", "devops engineer", "infrastructure engineer", "platform engineer"],
+    ["data engineer", "data scientist", "data analyst", "analytics engineer"],
+    ["ml engineer", "machine learning engineer", "ai engineer", "artificial intelligence engineer"],
+    ["software engineer", "software developer", "sde", "programmer"],
+    ["mobile developer", "ios developer", "android developer", "mobile engineer"],
+    ["tech lead", "technical lead", "engineering lead", "staff engineer", "principal engineer"],
+    ["qa engineer", "test engineer", "quality engineer", "sDET", "automation engineer"],
+    ["security engineer", "application security", "appsec"],
+    ["cloud engineer", "infrastructure engineer", "site reliability engineer", "sre"],
+    ["product manager", "product owner", "program manager"],
+    ["ux designer", "ui designer", "product designer", "designer"],
+    ["consultant", "advisor"],
+    ["architect", "solution architect", "systems architect"],
+  ];
+
+  function _normalizeRole(text) {
+    return (text || "")
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^a-z0-9\-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  function _roleMatchesFilter(candidateRoleText, filterText) {
+    const cn = _normalizeRole(candidateRoleText);
+    const fn = _normalizeRole(filterText);
+    if (!fn) return true;
+    if (!cn) return false;
+
+    if (cn.includes(fn) || fn.includes(cn)) return true;
+
+    for (const group of _ROLE_SYNONYMS) {
+      const normGroup = group.map(_normalizeRole);
+      const candInGroup = normGroup.some(s => cn.includes(s));
+      const filterInGroup = normGroup.some(s => fn.includes(s));
+      if (candInGroup && filterInGroup) {
+        if (fn.includes("frontend") && !cn.includes("frontend") && cn.includes("backend")) return false;
+        if (fn.includes("backend") && !cn.includes("backend") && cn.includes("frontend")) return false;
+        return true;
+      }
+    }
+
+    const filterWords = fn.split("-").filter(Boolean);
+    const candWords = cn.split("-").filter(Boolean);
+    const matchingWords = filterWords.filter(fw => candWords.some(cw => cw.includes(fw) || fw.includes(cw)));
+    return matchingWords.length >= Math.ceil(filterWords.length * 0.6);
+  }
+
+  /* --- experience matching --- */
+  function _parseExperienceYears(text) {
+    if (!text) return null;
+    const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+
+    const rangeMatch = t.match(/(\d+)\s*[-–]\s*(\d+)\s*(?:years?|yrs?)/);
+    if (rangeMatch) {
+      return { min: parseInt(rangeMatch[1], 10), max: parseInt(rangeMatch[2], 10) };
+    }
+
+    if (t.match(/fresher|entry\s*level|intern|0\s*(?:years?|yrs?)/)) {
+      return { min: 0, max: 1 };
+    }
+
+    const yrsMatch = t.match(/(\d+)\+?\s*(?:years?|yrs?)/);
+    if (yrsMatch) {
+      const yrs = parseInt(yrsMatch[1], 10);
+      if (t.includes("+")) return { min: yrs, max: 999 };
+      return { min: yrs, max: yrs };
+    }
+
+    return null;
+  }
+
+  function _parseFilterExpRange(filterText) {
+    const t = filterText.toLowerCase().replace(/\s+/g, " ").trim();
+    if (t.match(/fresher|entry\s*level|intern|0\s*(?:years?|yrs?)/)) {
+      return { min: 0, max: 2 };
+    }
+
+    const plusMatch = t.match(/^(\d+)\+\s*(?:years?|yrs?)?$/);
+    if (plusMatch) return { min: parseInt(plusMatch[1], 10), max: 999 };
+
+    const rangeMatch = t.match(/(\d+)\s*[-–to]+\s*(\d+)\s*(?:years?|yrs?)?/);
+    if (rangeMatch) return { min: parseInt(rangeMatch[1], 10), max: parseInt(rangeMatch[2], 10) };
+
+    const yrsMatch = t.match(/(\d+)\s*(?:years?|yrs?)/);
+    if (yrsMatch) {
+      const yrs = parseInt(yrsMatch[1], 10);
+      return { min: yrs, max: yrs + 2 };
+    }
+
+    const numMatch = t.match(/(\d+)/);
+    if (numMatch) {
+      const n = parseInt(numMatch[1], 10);
+      return { min: n, max: n + 2 };
+    }
+
+    return null;
+  }
+
+  function _experienceMatchesFilter(candidateExp, filterText) {
+    if (!filterText) return true;
+    const candRange = _parseExperienceYears(candidateExp);
+    const filterRange = _parseFilterExpRange(filterText);
+    if (!filterRange) return true;
+    if (!candRange) return false;
+
+    return candRange.max >= filterRange.min && candRange.min <= filterRange.max;
+  }
+
+  /* --- location normalization & alias matching --- */
+  const _LOCATION_ALIASES = {
+    "bangalore": "bengaluru", "bengaluru": "bengaluru", "bengalore": "bengaluru",
+    "mumbai": "mumbai", "bombay": "mumbai",
+    "chennai": "chennai", "madras": "chennai",
+    "kolkata": "kolkata", "calcutta": "kolkata",
+    "delhi": "delhi", "new delhi": "delhi", "noida": "delhi", "gurgaon": "delhi", "gurugram": "delhi", "faridabad": "delhi", "ghaziabad": "delhi",
+    "hyderabad": "hyderabad", "secunderabad": "hyderabad",
+    "pune": "pune", "poona": "pune",
+    "jaipur": "jaipur", "ahmedabad": "ahmedabad", "ahmadabad": "ahmedabad",
+    "indore": "indore", "chandigarh": "chandigarh", "lucknow": "lucknow",
+    "coimbatore": "coimbatore", "kochi": "kochi", "cochin": "kochi",
+    "agra": "agra", "patna": "patna", "bhopal": "bhopal",
+    "visakhapatnam": "visakhapatnam", "vizag": "visakhapatnam",
+    "usa": "usa", "united states": "usa", "us": "usa",
+    "uk": "uk", "united kingdom": "uk", "england": "uk", "great britain": "uk",
+    "canada": "canada", "germany": "germany", "france": "france",
+    "australia": "australia", "singapore": "singapore",
+    "dubai": "uae", "uae": "uae", "abu dhabi": "uae",
+    "berlin": "germany", "munich": "germany", "frankfurt": "germany", "hamburg": "germany",
+    "san francisco": "usa", "sf": "usa", "new york": "usa", "nyc": "usa",
+    "seattle": "usa", "austin": "usa", "boston": "usa", "chicago": "usa", "los angeles": "usa", "la": "usa",
+    "remote": "remote", "india": "india",
+  };
+
+  const _INDIAN_CITIES = new Set([
+    "bengaluru", "mumbai", "chennai", "kolkata", "delhi", "noida", "gurgaon",
+    "gurugram", "faridabad", "ghaziabad", "hyderabad", "secunderabad", "pune",
+    "jaipur", "ahmedabad", "indore", "chandigarh", "lucknow", "coimbatore",
+    "kochi", "agra", "patna", "bhopal", "visakhapatnam",
+  ]);
+
+  function _normalizeLocation(text) {
+    return (text || "")
+      .toLowerCase()
+      .replace(/[,;|/\\]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function _locationAliasKey(text) {
+    const norm = _normalizeLocation(text);
+    for (const [alias, canonical] of Object.entries(_LOCATION_ALIASES)) {
+      if (norm.includes(alias)) return canonical;
+    }
+    return null;
+  }
+
+  function _locationMatchesFilter(candidateLoc, filterText) {
+    if (!filterText) return true;
+    if (!candidateLoc) return false;
+
+    const candNorm = _normalizeLocation(candidateLoc);
+    const filterNorm = _normalizeLocation(filterText);
+    if (!filterNorm) return true;
+    if (!candNorm) return false;
+
+    if (candNorm.includes(filterNorm) || filterNorm.includes(candNorm)) return true;
+
+    const candKey = _locationAliasKey(candNorm);
+    const filterKey = _locationAliasKey(filterNorm);
+
+    if (candKey && filterKey) {
+      if (candKey === filterKey) return true;
+      if (filterKey === "india" && _INDIAN_CITIES.has(candKey)) return true;
+      return false;
+    }
+
+    if (filterKey === "india" && _INDIAN_CITIES.has(candKey || "")) return true;
+    if (candKey === "india" && _INDIAN_CITIES.has(filterKey || "")) return true;
+
+    const filterWords = filterNorm.split(" ").filter(Boolean);
+    const candWords = candNorm.split(" ").filter(Boolean);
+    return filterWords.every(fw => candWords.some(cw => cw.includes(fw) || fw.includes(cw)));
+  }
+
   function matchesSearchFilters(c) {
     if (searchFilterRole) {
-      const role = (c.role || c.headline || "").toLowerCase();
-      const name = (c.name || "").toLowerCase();
-      if (!role.includes(searchFilterRole) && !name.includes(searchFilterRole)) return false;
+      const roleText = [c.role, c.headline, (c.skills || []).join(" ")].filter(Boolean).join(" ");
+      if (!_roleMatchesFilter(roleText, searchFilterRole)) return false;
     }
     if (searchFilterExp) {
-      const exp = (c.experience || "").toLowerCase();
-      if (!exp.includes(searchFilterExp)) return false;
+      if (!_experienceMatchesFilter(c.experience, searchFilterExp)) return false;
     }
     if (searchFilterLoc) {
-      const loc = (c.location || "").toLowerCase();
-      if (!loc.includes(searchFilterLoc)) return false;
+      if (!_locationMatchesFilter(c.location, searchFilterLoc)) return false;
     }
     return true;
   }
@@ -785,7 +974,6 @@
     streamStatus.classList.add("hidden");
     searchSection.classList.remove("hidden");
     $("#results-stats").classList.remove("hidden");
-    input.value = "";
     input.focus();
   }
 
@@ -818,7 +1006,7 @@
     });
 
     /* new search */
-    $("#new-search-btn").addEventListener("click", newSearch);
+    $("#new-search-btn").addEventListener("click", () => { input.value = ""; newSearch(); });
     $("#modify-search-btn").addEventListener("click", newSearch);
     $("#retry-btn").addEventListener("click", send);
 
