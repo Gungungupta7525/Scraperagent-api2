@@ -962,6 +962,19 @@
   /* ---------- new search ---------- */
   function newSearch() {
     currentView = "search";
+
+    /* clear search filters state + inputs */
+    searchFilterRole = "";
+    searchFilterExp = "";
+    searchFilterLoc = "";
+    ($("#filter-role") || {}).value = "";
+    ($("#filter-experience") || {}).value = "";
+    ($("#filter-location") || {}).value = "";
+    activeFilter = "all";
+    activeSort = "score";
+    threshold = 0;
+    syncFilters();
+
     resultsSection.classList.add("hidden");
     skeletonList.classList.add("hidden");
     emptyState.classList.add("hidden");
@@ -974,6 +987,12 @@
     streamStatus.classList.add("hidden");
     searchSection.classList.remove("hidden");
     $("#results-stats").classList.remove("hidden");
+
+    /* update sidebar active state */
+    $$(".nav-item", sidebar).forEach((n) => n.classList.remove("active"));
+    const searchNav = $(".nav-item[data-page='search']", sidebar);
+    if (searchNav) searchNav.classList.add("active");
+
     input.focus();
   }
 
