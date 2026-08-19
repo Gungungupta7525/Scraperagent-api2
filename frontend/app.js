@@ -192,7 +192,7 @@
 
   function _parseFilterExpRange(filterText) {
     const t = filterText.toLowerCase().replace(/\s+/g, " ").trim();
-    if (t.match(/fresher|entry\s*level|intern|0\s*(?:years?|yrs?)/)) {
+    if (t.match(/fresher|entry\s*level|intern|\b0\s*(?:years?|yrs?)?/)) {
       return { min: 0, max: 2 };
     }
 

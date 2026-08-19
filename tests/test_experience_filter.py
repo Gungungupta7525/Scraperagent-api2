@@ -49,7 +49,7 @@ def _parse_filter_exp_range(filter_text):
     """Exact replica of frontend _parseFilterExpRange()."""
     t = re.sub(r"\s+", " ", filter_text.lower()).strip()
 
-    if re.search(r"fresher|entry\s*level|intern|0\s*(?:years?|yrs?)", t):
+    if re.search(r"fresher|entry\s*level|intern|\b0\s*(?:years?|yrs?)?", t):
         return {"min": 0, "max": 2}
 
     m = re.match(r"^(\d+)\+\s*(?:years?|yrs?)?$", t)
@@ -180,6 +180,12 @@ class TestParseFilterExpRange:
     def test_plus_yrs(self):
         assert _parse_filter_exp_range("10+ yrs") == {"min": 10, "max": 999}
 
+    def test_zero(self):
+        assert _parse_filter_exp_range("0") == {"min": 0, "max": 2}
+
+    def test_zero_years(self):
+        assert _parse_filter_exp_range("0 years") == {"min": 0, "max": 2}
+
 
 # ── _experienceMatchesFilter tests ──
 
@@ -266,3 +272,18 @@ class TestExperienceMatchesFilter:
 
     def test_range_to_pass(self):
         assert _experience_matches_filter("4 years", "2 to 5") is True
+
+    def test_zero_filter_fresher(self):
+        assert _experience_matches_filter("0 years", "0") is True
+
+    def test_zero_filter_junior(self):
+        assert _experience_matches_filter(None, "0") is False
+
+    def test_zero_filter_senior_excluded(self):
+        assert _experience_matches_filter("5 years", "0") is False
+
+    def test_zero_years_filter_fresher(self):
+        assert _experience_matches_filter("0 years", "0 years") is True
+
+    def test_zero_years_filter_senior_excluded(self):
+        assert _experience_matches_filter("5 years", "0 years") is False
