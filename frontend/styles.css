@@ -329,7 +329,14 @@ html, body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
+.search-textarea-wrap { position: relative; }
+.search-textarea-wrap textarea {
+  overflow-y: auto;
+}
 .search-textarea-wrap textarea::placeholder { color: var(--text-tertiary); }
+
+/* ---------- Compact search mode (after results) ---------- */
+.search-section[data-compact="true"] .search-hero { display: none; }
 
 .stream-status {
   font-size: 12px;
@@ -1251,6 +1258,8 @@ html, body {
    RESPONSIVE — DESKTOP (>1024): wider detail panel + bigger search
    ========================================================== */
 @media (min-width: 1024px) {
+  .main-content.has-results .sources-section { display: none; }
+
   .results-split {
     grid-template-columns: 1fr 520px;
     gap: 20px;
@@ -1416,6 +1425,7 @@ html, body {
   .sk-avatar { width: 32px; height: 32px; }
 
   .sources-section { padding: 16px 12px; }
+  .main-content.has-results .sources-section { display: none; }
   .source-item { padding: 5px 8px; font-size: 11px; gap: 5px; }
   .source-icon { width: 20px; height: 20px; }
 

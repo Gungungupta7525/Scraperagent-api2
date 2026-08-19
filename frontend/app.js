@@ -32,6 +32,8 @@
   const settingsModal = $("#settings-modal");
   const advFilterModal = $("#adv-filter-modal");
 
+  const mainContent = $(".main-content");
+
   const thresholdSlider = $("#threshold-slider");
   const thresholdVal = $("#threshold-val");
   const sortSelect = $("#sort-select");
@@ -374,6 +376,11 @@
   sidebarToggle.addEventListener("click", toggleSidebar);
   sidebarOverlay.addEventListener("click", toggleSidebar);
 
+  /* ---------- search expand / collapse ---------- */
+  function setSearchCompact(compact) {
+    searchSection.setAttribute("data-compact", compact ? "true" : "false");
+  }
+
   /* ---------- status ---------- */
   function setStatus(state, label) {
     sidebarStatusDot.className = "status-dot" + (state ? ` ${state}` : "");
@@ -392,7 +399,12 @@
     threshold = 0;
     syncFilters();
     applyFilterAndSort();
-    searchSection.classList.add("hidden");
+
+    /* keep search visible but compact */
+    searchSection.classList.remove("hidden");
+    setSearchCompact(true);
+    mainContent.classList.add("has-results");
+
     resultsSection.classList.remove("hidden");
     detailPanel.classList.remove("hidden");
     detailPlaceholder.classList.remove("hidden");
@@ -760,6 +772,8 @@
     errorState.classList.add("hidden");
     skeletonList.classList.remove("hidden");
     resultsTitle.textContent = "Searching...";
+    setSearchCompact(true);
+    mainContent.classList.add("has-results");
 
     streamStatus.classList.remove("hidden");
     streamStatus.textContent = "Connecting to search service...";
@@ -986,6 +1000,8 @@
     selectedCandidateUrl = null;
     streamStatus.classList.add("hidden");
     searchSection.classList.remove("hidden");
+    setSearchCompact(false);
+    mainContent.classList.remove("has-results");
     $("#results-stats").classList.remove("hidden");
 
     /* update sidebar active state */
@@ -1022,6 +1038,18 @@
     sendBtn.addEventListener("click", send);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+
+    /* search filter inputs — local filtering on change */
+    ["filter-role", "filter-experience", "filter-location"].forEach((id) => {
+      ($("#" + id) || {}).addEventListener("input", () => {
+        searchFilterRole = ($("#filter-role") || {}).value.trim().toLowerCase();
+        searchFilterExp = ($("#filter-experience") || {}).value.trim().toLowerCase();
+        searchFilterLoc = ($("#filter-location") || {}).value.trim().toLowerCase();
+        if (currentView === "search" && allCandidates.length > 0) {
+          applyFilterAndSort();
+        }
+      });
     });
 
     /* new search */
