@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import concurrent.futures
-import copy
 import hashlib
+import json
 import logging
-import threading
 import time
-import unicodedata
-from collections import OrderedDict
 from urllib.parse import urlparse
 
 from .heuristics import extract_heuristic_candidates, rank_candidates
@@ -21,16 +18,23 @@ _DISCOVERY_MULTIPLIER = 3
 
 log = logging.getLogger("scraperagent.pipeline")
 
+_CACHE_PREFIX = "scraperagent:cache:"
+
 
 class SearchCache:
-    """Thread-safe in-memory LRU cache for search results with TTL expiry."""
+    """Redis-backed persistent search result cache.
 
-    def __init__(self, ttl_seconds: float = 1800.0, max_entries: int = 50):
-        self._ttl = ttl_seconds
-        self._max = max_entries
-        self._lock = threading.Lock()
-        self._data: dict[str, tuple[float, dict]] = {}
-        self._order: OrderedDict[str, None] = OrderedDict()
+    Gracefully degrades to no-op if Redis is unavailable or unconfigured.
+    """
+
+    def __init__(self, redis_client=None, ttl_seconds: float = 1800.0):
+        self._redis = redis_client
+        self._ttl = int(ttl_seconds)
+        self._enabled = redis_client is not None
+        if self._enabled:
+            log.info("[REDIS] Persistent cache enabled ttl=%ds", self._ttl)
+        else:
+            log.info("[REDIS] Cache disabled: credentials not configured")
 
     @staticmethod
     def make_key(job_description: str, sources: list, max_candidates: int) -> str:
@@ -38,40 +42,36 @@ class SearchCache:
         payload = f"{norm_jd}|{'|'.join(sorted(sources))}|{max_candidates}"
         return hashlib.sha256(payload.encode()).hexdigest()
 
+    @staticmethod
+    def _redis_key(key: str) -> str:
+        return f"{_CACHE_PREFIX}{key}"
+
     def get(self, key: str) -> dict | None:
+        if not self._enabled:
+            return None
         try:
-            with self._lock:
-                entry = self._data.get(key)
-                if entry is None:
-                    log.debug("[CACHE] MISS key=%s", key[:12])
-                    return None
-                ts, result = entry
-                if time.monotonic() - ts > self._ttl:
-                    log.debug("[CACHE] EXPIRED key=%s", key[:12])
-                    del self._data[key]
-                    self._order.pop(key, None)
-                    return None
-                self._order.move_to_end(key)
-                log.debug("[CACHE] HIT key=%s", key[:12])
-                return copy.deepcopy(result)
+            raw = self._redis.get(self._redis_key(key))
+            if raw is None:
+                log.debug("[CACHE] MISS key=%s", key[:12])
+                return None
+            log.debug("[CACHE] HIT key=%s", key[:12])
+            return json.loads(raw)
         except Exception as exc:
-            log.warning("[CACHE] get error: %s", exc)
+            log.warning("[CACHE] GET error key=%s: %s", key[:12], exc)
             return None
 
     def put(self, key: str, result: dict) -> None:
+        if not self._enabled:
+            return
         try:
-            with self._lock:
-                if key in self._data:
-                    del self._data[key]
-                    self._order.pop(key, None)
-                while len(self._data) >= self._max:
-                    oldest_key, _ = self._order.popitem(last=False)
-                    self._data.pop(oldest_key, None)
-                self._data[key] = (time.monotonic(), result)
-                self._order[key] = None
-                log.debug("[CACHE] STORE key=%s entries=%d", key[:12], len(self._data))
+            self._redis.set(
+                self._redis_key(key),
+                json.dumps(result),
+                ex=self._ttl,
+            )
+            log.debug("[CACHE] STORE key=%s ttl=%d", key[:12], self._ttl)
         except Exception as exc:
-            log.warning("[CACHE] put error: %s", exc)
+            log.warning("[CACHE] SET error key=%s: %s", key[:12], exc)
 
 
 class Pipeline:

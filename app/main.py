@@ -13,13 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .agent import ScrapingAgent, UpstreamError
+from .agent import ScrapingAgent, UpstreamError, _init_cache
 from .config import Settings
 from .schemas import ScrapingRequest
 
 warnings.filterwarnings("ignore", message=".*renamed.*ddgs.*")
 
 settings = Settings()
+_init_cache(settings)
 
 
 def get_agent():
@@ -75,7 +76,8 @@ def _run_job(agent: ScrapingAgent, job_description: str, sources, max_candidates
         print(f"[UPSTREAM] {exc}", flush=True)
         out.put({"type": "error", "detail": str(exc), "status_code": 503})
     except Exception as exc:
-        print(f"[EXCEPTION] {exc}", flush=True, exc_info=True)
+        import traceback
+        print(f"[EXCEPTION] {exc}\n{traceback.format_exc()}", flush=True)
         out.put({"type": "error", "detail": f"internal error: {exc}", "status_code": 500})
     finally:
         out.put(None)

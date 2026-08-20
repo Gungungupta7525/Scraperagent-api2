@@ -29,7 +29,9 @@ class Settings:
         self.max_scrapes = int(env.get("MAX_SCRAPES", "5"))
 
         self.cache_ttl_seconds = float(env.get("CACHE_TTL_SECONDS", "1800"))
-        self.cache_max_entries = int(env.get("CACHE_MAX_ENTRIES", "50"))
+
+        self.redis_url = (env.get("UPSTASH_REDIS_REST_URL") or "").strip()
+        self.redis_token = (env.get("UPSTASH_REDIS_REST_TOKEN") or "").strip()
 
     @property
     def llm_configured(self) -> bool:

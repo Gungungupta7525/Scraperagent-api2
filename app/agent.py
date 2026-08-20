@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import time
 
@@ -11,6 +12,33 @@ from .pipeline import Pipeline, SearchCache
 from .queries import resolve_sources
 
 log = logging.getLogger("scraperagent.agent")
+
+_cache: SearchCache | None = None
+
+
+def _init_cache(settings: Settings) -> SearchCache:
+    """Create the Redis-backed cache. Called once at startup."""
+    global _cache
+    if _cache is not None:
+        return _cache
+    redis_client = None
+    if settings.redis_url and settings.redis_token:
+        try:
+            from upstash_redis import Redis
+            redis_client = Redis(url=settings.redis_url, token=settings.redis_token)
+            log.info("[REDIS] Connected to Upstash Redis")
+        except Exception as exc:
+            log.warning("[REDIS] Connection failed: %s — caching disabled", exc)
+    _cache = SearchCache(redis_client=redis_client, ttl_seconds=settings.cache_ttl_seconds)
+    return _cache
+
+
+def _get_cache() -> SearchCache:
+    """Get the shared cache instance."""
+    global _cache
+    if _cache is None:
+        _cache = SearchCache(redis_client=None)
+    return _cache
 
 
 class UpstreamError(Exception):
@@ -44,10 +72,6 @@ class ScrapingAgent:
         self.settings = settings
         self.pipeline = Pipeline(settings)
         self.pipeline.llm_adapters = build_providers(settings)
-        self._cache = SearchCache(
-            ttl_seconds=settings.cache_ttl_seconds,
-            max_entries=settings.cache_max_entries,
-        )
 
     def run(self, job_description: str, sources=None, max_candidates: int = 10, on_status=None):
         emit = on_status or (lambda message: None)
@@ -55,8 +79,9 @@ class ScrapingAgent:
         emit("Connected to the backend")
         allowed = resolve_sources(job_description, sources)
 
+        cache = _get_cache()
         cache_key = SearchCache.make_key(job_description, allowed, max_candidates)
-        cached = self._cache.get(cache_key)
+        cached = cache.get(cache_key)
         if cached is not None:
             log.info("[CACHE] HIT key=%s", cache_key[:12])
             emit("Returning cached results")
@@ -87,5 +112,5 @@ class ScrapingAgent:
             "partial": time.monotonic() >= deadline,
         }
 
-        self._cache.put(cache_key, copy.deepcopy(result))
+        cache.put(cache_key, result)
         return result
